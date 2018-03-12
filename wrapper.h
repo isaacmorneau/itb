@@ -6,10 +6,6 @@
 #include <sys/epoll.h>
 
 //==>assert macros<==
-#ifdef NDEBUG
-#define ensure(expr) ((void)(expr))
-#define ensure_nonblock(expr) ((void)(expr))
-#else
 #define ensure(expr)\
     do {\
         if (!(expr)) {\
@@ -27,7 +23,6 @@
             exit(1);\
         }\
     } while(0)
-#endif
 
 //==>fd ioctl wrappers<==
 void set_fd_limit();
