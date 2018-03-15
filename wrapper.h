@@ -11,7 +11,7 @@
         if (!(expr)) {\
             fprintf(stderr, "%s::%s::%d\n\t", __FILE__, __FUNCTION__, __LINE__);\
             perror(#expr);\
-            exit(1);\
+            exit(errno);\
         }\
     } while(0)
 
@@ -20,7 +20,7 @@
         if (!(expr) && errno != EAGAIN) {\
             fprintf(stderr, "%s::%s::%d\n\t", __FILE__, __FUNCTION__, __LINE__);\
             perror(#expr);\
-            exit(1);\
+            exit(errno);\
         }\
     } while(0)
 

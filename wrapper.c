@@ -52,8 +52,8 @@ int make_connected(const char * address, const char * port) {
 
     ensure(getaddrinfo(address, port, &hints, &result) == 0);
 
-    for (rp = result; rp != 0; rp = rp->ai_next) {
-        if ((sfd = socket(rp->ai_family, rp->ai_socktype|SOCK_NONBLOCK|SOCK_CLOEXEC, rp->ai_protocol)) == -1) {
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        if ((sfd = socket(rp->ai_family, rp->ai_socktype|SOCK_CLOEXEC, rp->ai_protocol)) == -1) {
             continue;
         }
 
@@ -64,10 +64,11 @@ int make_connected(const char * address, const char * port) {
         close(sfd);
     }
 
-    ensure(rp);
+    ensure(rp != NULL);
 
     freeaddrinfo(result);
 
+    set_non_blocking(sfd);
     return sfd;
 }
 
@@ -85,7 +86,7 @@ int make_bound_tcp(const char * port) {
     ensure(getaddrinfo(NULL, port, &hints, &result) == 0);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
-        if ((sfd = socket(rp->ai_family, rp->ai_socktype|SOCK_NONBLOCK|SOCK_CLOEXEC, rp->ai_protocol)) == -1) {
+        if ((sfd = socket(rp->ai_family, rp->ai_socktype|SOCK_CLOEXEC, rp->ai_protocol)) == -1) {
             continue;
         }
 
@@ -100,10 +101,11 @@ int make_bound_tcp(const char * port) {
         close(sfd);
     }
 
-    ensure(rp);
+    ensure(rp != NULL);
 
     freeaddrinfo(result);
 
+    set_non_blocking(sfd);
     return sfd;
 }
 
