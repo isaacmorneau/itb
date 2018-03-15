@@ -32,6 +32,7 @@ void set_non_blocking(int sfd);
 int fill_storage(struct sockaddr_storage * addr, const char * host, int port);
 
 //==>tcp wrappers<==
+void set_listening(int sfd);
 int make_bound_tcp(const char * port);
 int make_connected(const char * address, const char * port);
 

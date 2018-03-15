@@ -40,6 +40,9 @@ void set_non_blocking (int sfd) {
 }
 
 //==>tcp wrappers<==
+void set_listening(int sfd) {
+    ensure(listen(sfd, SOMAXCONN) != -1);
+}
 int make_connected(const char * address, const char * port) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
