@@ -59,6 +59,7 @@ inline struct epoll_event * make_epoll_events() {
     return (struct epoll_event *)malloc(sizeof(struct epoll_event)*MAXEVENTS);
 }
 int wait_epoll(int efd, struct epoll_event * events);
+int wait_epoll_timeout(int efd, struct epoll_event * events, int timeout);
 int add_epoll_ptr(int efd, int ifd, void * ptr);
 int add_epoll_fd(int efd, int ifd);
 

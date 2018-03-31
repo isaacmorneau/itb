@@ -164,13 +164,12 @@ int read_message(int sockfd, char * restrict buffer, int len) {
     int total = 0, ret;
 readmsg:
     addr_len = sizeof(struct sockaddr_storage);
-    ensure_nonblock((ret = recvfrom(sockfd, buffer, len, 0, (struct sockaddr *)&addr,
+    ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0, (struct sockaddr *)&addr,
                     &addr_len)) != -1);
     if (ret == -1)
         return total;
     total += ret;
     ensure(getnameinfo((struct sockaddr *)&addr, addr_len, hbuf, sizeof(hbuf), sbuf, sizeof(hbuf), NI_NUMERICHOST|NI_NUMERICSERV|NI_DGRAM) == 0);
-    printf("read %d from %s:%s\n", ret, hbuf, sbuf);
     goto readmsg;
 }
 
@@ -191,6 +190,12 @@ int make_epoll() {
 int wait_epoll(int efd, struct epoll_event * restrict events) {
     int ret;
     ensure((ret = epoll_wait(efd, events, MAXEVENTS, -1)) != -1);
+    return ret;
+}
+
+int wait_epoll_timeout(int efd, struct epoll_event * restrict events, int timeout) {
+    int ret;
+    ensure((ret = epoll_wait(efd, events, MAXEVENTS, timeout)) != -1);
     return ret;
 }
 
