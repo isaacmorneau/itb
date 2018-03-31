@@ -53,6 +53,7 @@ int send_message(int sockfd, const char * buffer, int len, const struct sockaddr
 #define EVENT_FD(events, i) (events[i].data.fd)
 #define EVENT_PTR(events, i) (events[i].data.ptr)
 
+
 int make_epoll();
 inline struct epoll_event * make_epoll_events() {
     return (struct epoll_event *)malloc(sizeof(struct epoll_event)*MAXEVENTS);
@@ -60,8 +61,11 @@ inline struct epoll_event * make_epoll_events() {
 int wait_epoll(int efd, struct epoll_event * events);
 int wait_epoll_timeout(int efd, struct epoll_event * events, int timeout);
 int add_epoll_ptr(int efd, int ifd, void * ptr);
-int add_epoll_ptr_flags(int efd, int ifd, void * ptr, int flags);
 int add_epoll_fd(int efd, int ifd);
+
+#define EVENT_ONLY_OUT (EPOLLOUT | EPOLLET | EPOLLEXCLUSIVE)
+#define EVENT_ONLY_IN (EPOLLIN | EPOLLET | EPOLLEXCLUSIVE)
+int add_epoll_ptr_flags(int efd, int ifd, void * ptr, int flags);
 int add_epoll_fd_flags(int efd, int ifd, int flags);
 
 
