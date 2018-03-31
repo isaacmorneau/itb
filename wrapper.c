@@ -209,11 +209,29 @@ int add_epoll_ptr(int efd, int ifd, void * ptr) {
     return ret;
 }
 
+int add_epoll_ptr_flags(int efd, int ifd, void * ptr, int flags) {
+    int ret;
+    static struct epoll_event event;
+    event.data.ptr = ptr;
+    event.events = flags;
+    ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    return ret;
+}
+
 int add_epoll_fd(int efd, int ifd) {
     int ret;
     static struct epoll_event event;
     event.data.fd = ifd;
     event.events = EPOLLOUT | EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
+    ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    return ret;
+}
+
+int add_epoll_fd_flags(int efd, int ifd, int flags) {
+    int ret;
+    static struct epoll_event event;
+    event.data.fd = ifd;
+    event.events = flags;
     ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
     return ret;
 }
