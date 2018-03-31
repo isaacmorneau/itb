@@ -112,7 +112,7 @@ int make_bound_tcp(const char * port) {
     return sfd;
 }
 
-//==>udp wrappers<==
+//==>ip wrappers<==
 void make_storage(struct sockaddr_storage * restrict addr, const char * restrict host, int port) {
     struct addrinfo hints;
     struct addrinfo * rp;
@@ -141,6 +141,7 @@ void make_storage(struct sockaddr_storage * restrict addr, const char * restrict
     freeaddrinfo(rp);
 }
 
+//==>udp wrappers<==
 int make_bound_udp(int port) {
     struct sockaddr_in sin;
     int sockfd;

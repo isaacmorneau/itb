@@ -29,7 +29,7 @@ void set_fd_limit();
 void set_non_blocking(int sfd);
 
 //==>ip wrappers<==
-int fill_storage(struct sockaddr_storage * addr, const char * host, int port);
+void make_storage(struct sockaddr_storage * addr, const char * host, int port);
 
 //==>tcp wrappers<==
 void set_listening(int sfd);
@@ -37,7 +37,6 @@ int make_bound_tcp(const char * port);
 int make_connected(const char * address, const char * port);
 
 //==>udp wrappers<==
-void make_storage(struct sockaddr_storage * addr, const char * host, int port);
 int make_bound_udp(int port);
 int read_message(int sockfd, char * buffer, int len);
 int send_message(int sockfd, const char * buffer, int len, const struct sockaddr_storage * addr);
