@@ -39,6 +39,8 @@ int make_connected(const char * address, const char * port);
 //==>udp wrappers<==
 int make_bound_udp(int port);
 int read_message(int sockfd, char * buffer, int len);
+int read_message_addr(int sockfd, char * buffer, int len, struct sockaddr_storage * addr);
+int read_message_port(int sockfd, char * buffer, int len, int * port);
 int send_message(int sockfd, const char * buffer, int len, const struct sockaddr_storage * addr);
 
 

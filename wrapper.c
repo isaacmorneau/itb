@@ -159,6 +159,16 @@ int make_bound_udp(int port) {
 }
 
 int read_message(int sockfd, char * restrict buffer, int len) {
+    int total = 0, ret;
+readmsg:
+    ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0, NULL, NULL)) != -1);
+    if (ret == -1)
+        return total;
+    total += ret;
+    goto readmsg;
+}
+
+int read_message_port(int sockfd, char * restrict buffer, int len, int * port) {
     struct sockaddr_storage addr;
     socklen_t addr_len;
     char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
@@ -171,6 +181,20 @@ readmsg:
         return total;
     total += ret;
     ensure(getnameinfo((struct sockaddr *)&addr, addr_len, hbuf, sizeof(hbuf), sbuf, sizeof(hbuf), NI_NUMERICHOST|NI_NUMERICSERV|NI_DGRAM) == 0);
+    *port = atoi(sbuf);
+    goto readmsg;
+}
+
+int read_message_addr(int sockfd, char * restrict buffer, int len, struct sockaddr_storage * addr) {
+    socklen_t addr_len;
+    int total = 0, ret;
+readmsg:
+    addr_len = sizeof(struct sockaddr_storage);
+    ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0, (struct sockaddr *)addr,
+                    &addr_len)) != -1);
+    if (ret == -1)
+        return total;
+    total += ret;
     goto readmsg;
 }
 
