@@ -146,14 +146,14 @@ int make_bound_udp(int port) {
     struct sockaddr_in sin;
     int sockfd;
 
-    ensure((sockfd = socket(AF_INET, SOCK_DGRAM|SOCK_NONBLOCK|SOCK_CLOEXEC, 0)) == -1);
+    ensure((sockfd = socket(AF_INET, SOCK_DGRAM|SOCK_NONBLOCK|SOCK_CLOEXEC, 0)) != -1);
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_addr.s_addr = htonl(INADDR_ANY);
     sin.sin_port = htons(port);
     sin.sin_family = AF_INET;
 
-    ensure(bind(sockfd, (struct sockaddr *) &sin, sizeof(sin)) == -1);
+    ensure(bind(sockfd, (struct sockaddr *) &sin, sizeof(sin)) != -1);
 
     return sockfd;
 }
