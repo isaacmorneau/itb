@@ -97,8 +97,8 @@ typedef struct udp_buffer {
     struct udp_buffer * next;
 } udp_buffer;
 
-int udp_buffer_read(int sockfd, udp_buffer * con);
-int udp_buffer_flush(int sockfd, udp_buffer * con);
+int udp_buffer_read(udp_buffer * con);
+int udp_buffer_flush(udp_buffer * con);
 
 void init_udp_buffer(udp_buffer * in_con, udp_buffer * out_con);
 void close_udp_buffer(udp_buffer * con);

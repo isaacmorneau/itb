@@ -319,12 +319,12 @@ void close_directional_buffer(directional_buffer * con) {
 }
 
 //==>udp composing wrappers<==
-int udp_buffer_read(int sockfd, udp_buffer * con) {
+int udp_buffer_read(udp_buffer * con) {
     socklen_t addr_len;
     int total = 0, ret;
 readmsg:
     addr_len = sizeof(struct sockaddr_storage);
-    ensure_nonblock((ret = recvfrom(sockfd, con->buffer + con->pos, BUFFER_SIZE - con->pos, 0, (struct sockaddr *)&con->addr,
+    ensure_nonblock((ret = recvfrom(con->sockfd, con->buffer + con->pos, BUFFER_SIZE - con->pos, 0, (struct sockaddr *)&con->addr,
                     &addr_len)) != -1);
     if (ret == -1)
         return total;
@@ -333,10 +333,10 @@ readmsg:
     goto readmsg;
 }
 
-int udp_buffer_flush(int sockfd, udp_buffer * con) {
+int udp_buffer_flush(udp_buffer * con) {
     int ret;
     socklen_t addr_len = sizeof(struct sockaddr_storage);
-    ensure_nonblock((ret = sendto(sockfd, con->buffer, con->pos, 0, (struct sockaddr *)&con->next->addr, addr_len)) != -1);
+    ensure_nonblock((ret = sendto(con->sockfd, con->buffer, con->pos, 0, (struct sockaddr *)&con->next->addr, addr_len)) != -1);
     if (ret > 0)
         con->pos -= ret;
     return ret;
