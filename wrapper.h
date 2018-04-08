@@ -27,6 +27,7 @@
 //==>fd ioctl wrappers<==
 void set_fd_limit();
 void set_non_blocking(int sfd);
+void set_nodelay(int sfd);
 
 //==>ip wrappers<==
 void make_storage(struct sockaddr_storage * addr, const char * host, int port);

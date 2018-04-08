@@ -39,6 +39,12 @@ void set_non_blocking (int sfd) {
     ensure(fcntl(sfd, F_SETFL, flags) != -1);
 }
 
+void set_fast(int sfd) {
+    int i = 1;
+    setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &i, sizeof(i));
+    setsockopt(sfd, IPPROTO_TCP, TCP_QUICKACK, &i, sizeof(i));
+}
+
 //==>tcp wrappers<==
 void set_listening(int sfd) {
     ensure(listen(sfd, SOMAXCONN) != -1);
