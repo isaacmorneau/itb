@@ -85,4 +85,41 @@ int forward_flush(const directional_buffer * con);
 void close_directional_buffer(directional_buffer * con);
 void init_directional_buffer(directional_buffer * in_con, directional_buffer * out_con, int in_fd, int out_fd);
 
+//==>udp composing wrappers<==
+#define BUFFER_SIZE 1024
+
+struct udp_buffer;
+typedef struct udp_buffer {
+    struct sockaddr_storage addr;
+    int pos;
+    char buffer[BUFFER_SIZE];
+    struct udp_buffer * next;
+} udp_buffer;
+
+int udp_buffer_read(int sockfd, udp_buffer * con);
+int udp_buffer_flush(int sockfd, udp_buffer * con);
+
+void init_udp_buffer(udp_buffer * in_con, udp_buffer * out_con);
+void close_udp_buffer(udp_buffer * con);
+
+
+//==> forwarding rulerappers<==
+struct pairs;
+typedef struct pairs {
+    char * addr;
+    char * i_port;
+    char * o_port;
+    union {
+        int fd;
+        void * ptr;
+    } data;
+    struct pairs * next;
+} pairs;
+
+void add_pairs(pairs ** head, const char * arg);
+void print_pairs(const pairs * head);
+void free_pairs(pairs * head);
 #endif
+
+
+
