@@ -92,6 +92,7 @@ struct udp_buffer;
 typedef struct udp_buffer {
     struct sockaddr_storage addr;
     int pos;
+    int sockfd;
     char buffer[BUFFER_SIZE];
     struct udp_buffer * next;
 } udp_buffer;
