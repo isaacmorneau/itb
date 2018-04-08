@@ -159,6 +159,8 @@ int make_bound_udp(int port) {
     sin.sin_port = htons(port);
     sin.sin_family = AF_INET;
 
+    int enable = 1;
+    ensure(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != -1);
     ensure(bind(sockfd, (struct sockaddr *) &sin, sizeof(sin)) != -1);
 
     return sockfd;
