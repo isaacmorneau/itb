@@ -22,6 +22,11 @@
 #include "wrapper.h"
 
 //==>fd ioctl wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: increases the rlimit for file descriptors to the max currently
+ * supported by the linux kernel (4.15)
+ */
 void set_fd_limit() {
     struct rlimit lim;
     //the kernel patch that allows for RLIM_INFINITY to work breaks stuff
@@ -32,6 +37,10 @@ void set_fd_limit() {
     ensure(setrlimit(RLIMIT_NOFILE, &lim) != -1);
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: sets the nonblock flag on the file descriptor
+ */
 void set_non_blocking (int sfd) {
     int flags;
     ensure((flags = fcntl(sfd, F_GETFL, 0)) != -1);
@@ -39,6 +48,10 @@ void set_non_blocking (int sfd) {
     ensure(fcntl(sfd, F_SETFL, flags) != -1);
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: disables delay and enables quick ACKs for a TCP socket
+ */
 void set_fast(int sfd) {
     int i = 1;
     setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &i, sizeof(i));
@@ -46,9 +59,17 @@ void set_fast(int sfd) {
 }
 
 //==>tcp wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: sets TCP socket to listen at the maximum supported number
+ */
 void set_listening(int sfd) {
     ensure(listen(sfd, SOMAXCONN) != -1);
 }
+/*
+ * Programmer: Isaac Morneau
+ * Notes: connects to an IPv4 or IPv6 or URL host at a string port and returns the connected socket
+ */
 int make_connected(const char * address, const char * port) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -81,6 +102,10 @@ int make_connected(const char * address, const char * port) {
     return sfd;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: binds to a string port locally returning the bound socket
+ */
 int make_bound_tcp(const char * port) {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -119,6 +144,11 @@ int make_bound_tcp(const char * port) {
 }
 
 //==>ip wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: fillsout a sockaddr_storage structure from host and integer port for use in IP
+ * version agnostic functions
+ */
 void make_storage(struct sockaddr_storage * restrict addr, const char * restrict host, int port) {
     struct addrinfo hints;
     struct addrinfo * rp;
@@ -148,6 +178,10 @@ void make_storage(struct sockaddr_storage * restrict addr, const char * restrict
 }
 
 //==>udp wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: makes a bound udp socket at the specified integer port
+ */
 int make_bound_udp(int port) {
     struct sockaddr_in sin;
     int sockfd;
@@ -166,6 +200,11 @@ int make_bound_udp(int port) {
     return sockfd;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: reads a UDP DGRAM into a buffer ignoring address information
+ * fastest read method
+ */
 int read_message(int sockfd, char * restrict buffer, int len) {
     int total = 0, ret;
 readmsg:
@@ -176,6 +215,11 @@ readmsg:
     goto readmsg;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: reads a UDP DGRAM into a buffer while storing the port it came from
+ * slowest read method
+ */
 int read_message_port(int sockfd, char * restrict buffer, int len, int * port) {
     struct sockaddr_storage addr;
     socklen_t addr_len;
@@ -193,6 +237,11 @@ readmsg:
     goto readmsg;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: reads a UDP DGRAM into a buffer storing the entire address
+ * middle speed read method
+ */
 int read_message_addr(int sockfd, char * restrict buffer, int len, struct sockaddr_storage * addr) {
     socklen_t addr_len;
     int total = 0, ret;
@@ -206,6 +255,10 @@ readmsg:
     goto readmsg;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: sends a UDP DGRAM to the address in the initalized sockaddr_storage struct
+ */
 int send_message(int sockfd, const char * restrict buffer, int len, const struct sockaddr_storage * restrict addr) {
     int ret;
     socklen_t addr_len = sizeof(struct sockaddr_storage);
@@ -214,24 +267,40 @@ int send_message(int sockfd, const char * restrict buffer, int len, const struct
 }
 
 //==>epoll wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: creates and returns an epoll instance
+ */
 int make_epoll() {
     int efd;
     ensure((efd = epoll_create1(EPOLL_CLOEXEC)) != -1);
     return efd;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: waits for epoill events, blocks forever
+ */
 int wait_epoll(int efd, struct epoll_event * restrict events) {
     int ret;
     ensure((ret = epoll_wait(efd, events, MAXEVENTS, -1)) != -1);
     return ret;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: waits for epoll events, blocks for timeout milliseconds
+ */
 int wait_epoll_timeout(int efd, struct epoll_event * restrict events, int timeout) {
     int ret;
     ensure((ret = epoll_wait(efd, events, MAXEVENTS, timeout)) != -1);
     return ret;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: add a pointer to an epoll instance with read and write events subscribed
+ */
 int add_epoll_ptr(int efd, int ifd, void * ptr) {
     int ret;
     static struct epoll_event event;
@@ -241,6 +310,10 @@ int add_epoll_ptr(int efd, int ifd, void * ptr) {
     return ret;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: add a pointer to an epoll instance with user specified flags
+ */
 int add_epoll_ptr_flags(int efd, int ifd, void * ptr, int flags) {
     int ret;
     static struct epoll_event event;
@@ -250,6 +323,10 @@ int add_epoll_ptr_flags(int efd, int ifd, void * ptr, int flags) {
     return ret;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: adds a file descriptor to an epoll instance with reaad and write events subscribed
+ */
 int add_epoll_fd(int efd, int ifd) {
     int ret;
     static struct epoll_event event;
@@ -259,6 +336,10 @@ int add_epoll_fd(int efd, int ifd) {
     return ret;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: adds a file descriptor to an epoll instance with user specified flags
+ */
 int add_epoll_fd_flags(int efd, int ifd, int flags) {
     int ret;
     static struct epoll_event event;
@@ -269,6 +350,10 @@ int add_epoll_fd_flags(int efd, int ifd, int flags) {
 }
 
 //==>connection forwarding wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: read data from the connection and forward it to the connected buffer
+ */
 int forward_read(const directional_buffer * con) {
     int total = 0, ret;
 read:
@@ -290,6 +375,10 @@ readflush:
     goto readflush;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: empty the buffer to the connection without reading new data
+ */
 int forward_flush(const directional_buffer * con) {
     int total = 0, ret;
 flush:
@@ -299,6 +388,10 @@ flush:
     goto flush;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: create the directional buffers and link them together
+ */
 void init_directional_buffer(directional_buffer * in_con, directional_buffer * out_con, int in_fd, int out_fd) {
     ensure(pipe(in_con->pipefd) == 0);
     ensure(pipe(out_con->pipefd) == 0);
@@ -310,6 +403,11 @@ void init_directional_buffer(directional_buffer * in_con, directional_buffer * o
 }
 
 //will exit if the other side is already closed
+/*
+ * Programmer: Isaac Morneau
+ * Notes: free directional buffer resources
+ * this will exit if the other side is already closed
+ */
 void close_directional_buffer(directional_buffer * con) {
     close(con->sockfd);
     close(con->pipefd[0]);
@@ -327,6 +425,10 @@ void close_directional_buffer(directional_buffer * con) {
 }
 
 //==>udp composing wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: read data into the UDP connection buffer
+ */
 int udp_buffer_read(udp_buffer * con) {
     socklen_t addr_len;
     int total = 0, ret;
@@ -341,6 +443,10 @@ readmsg:
     goto readmsg;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: send data from the UDP connection buffer to the connected address
+ */
 int udp_buffer_flush(udp_buffer * con) {
     int ret;
     socklen_t addr_len = sizeof(struct sockaddr_storage);
@@ -350,6 +456,10 @@ int udp_buffer_flush(udp_buffer * con) {
     return ret;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: link two UDP connection buffers
+ */
 void init_udp_buffer(udp_buffer * in_con, udp_buffer * out_con) {
     in_con->pos = 0;
     out_con->pos = 0;
@@ -357,7 +467,13 @@ void init_udp_buffer(udp_buffer * in_con, udp_buffer * out_con) {
     out_con->next = in_con;
 }
 
-//==> forwarding rulerappers<==
+//==> forwarding rule wrappers<==
+/*
+ * Programmer: Isaac Morneau
+ * Notes: add forwarding rules from arguments to the pairs linked list
+ * if head is null the structure will be initialized and as such can be
+ * called multiple times on the same head
+ */
 void add_pairs(pairs ** restrict head, const char * restrict arg) {
     pairs * current;
     int len = strlen(arg) + 1;//+1 for null at the end
@@ -394,11 +510,19 @@ void add_pairs(pairs ** restrict head, const char * restrict arg) {
     current->next = NULL;
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: print the pairs in the linked list for verification of rules
+ */
 void print_pairs(const pairs * head) {
     for(const pairs * current = head; current != NULL; current = current->next)
         printf("link %s -> %s at %s\n", current->i_port, current->o_port, current->addr);
 }
 
+/*
+ * Programmer: Isaac Morneau
+ * Notes: free the pairs linked list
+ */
 void free_pairs(pairs * restrict head) {
     if (head->next) {
         free_pairs(head->next);
