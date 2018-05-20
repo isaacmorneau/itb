@@ -43,6 +43,8 @@ void make_storage(struct sockaddr_storage * addr, const char * host, int port);
 void set_listening(int sfd);
 int make_bound_tcp(const char * port);
 int make_connected(const char * address, const char * port);
+int accept_blind(int sfd);
+int accept_addr(int sfd, struct sockaddr_storage * addr);
 
 //==>udp wrappers<==
 //functions for setting up UDP

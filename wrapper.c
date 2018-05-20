@@ -143,6 +143,19 @@ int make_bound_tcp(const char * port) {
     return sfd;
 }
 
+int accept_blind(int sfd) {
+    int ret;
+    ensure_nonblock((ret = accept(sfd, 0, 0)) != -1);
+    return ret;
+}
+
+int accept_addr(int sfd, struct sockaddr_storage * addr) {
+    int ret;
+    socklen_t len = sizeof(struct sockaddr_storage);
+    ensure_nonblock((ret = accept(sfd, (struct sockaddr*)addr, &len)) != -1);
+    return ret;
+}
+
 //==>ip wrappers<==
 /*
  * Programmer: Isaac Morneau
