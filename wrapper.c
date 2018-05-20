@@ -354,7 +354,7 @@ int add_epoll_fd_flags(int efd, int ifd, int flags) {
  * Programmer: Isaac Morneau
  * Notes: read data from the connection and forward it to the connected buffer
  */
-int forward_read(const directional_buffer * con) {
+int directional_echo(const directional_buffer * con) {
     int total = 0, ret;
 read:
     //read new data
@@ -379,11 +379,13 @@ readflush:
  * Programmer: Isaac Morneau
  * Notes: empty the buffer to the connection without reading new data
  */
-int forward_flush(const directional_buffer * con) {
+int directional_flush(const directional_buffer * con) {
     int total = 0, ret;
 flush:
     ensure_nonblock((ret = splice(con->pipefd[0], 0, con->paired->sockfd, 0, UINT_MAX, SPLICE_F_MORE | SPLICE_F_NONBLOCK)) != -1);
-    if (ret == -1) return total;
+    if (ret == -1) {
+        return total;
+    }
     total += ret;
     goto flush;
 }
@@ -528,4 +530,61 @@ void free_pairs(pairs * restrict head) {
         free_pairs(head->next);
     }
     free(head);
+}
+
+//==>connection echoing wrappers<==
+
+/*
+ * Programmer: Isaac Morneau
+ * Notes: setup the pipes for the echoing struct
+ */
+void init_echoing(echoing_buffer * buf, int sockfd) {
+    buf->sockfd = sockfd;
+    ensure(pipe(buf->pipefd) == 0);
+}
+
+/*
+ * Programmer: Isaac Morneau
+ * Notes: cleanup all system resources used by the echoing struct
+ */
+void close_echoing(echoing_buffer * buf) {
+    close(buf->sockfd);
+    close(buf->pipefd[0]);
+    close(buf->pipefd[1]);
+}
+
+/*
+ * Programmer: Isaac Morneau
+ * Notes: read the data into the pipe and echo it back to the connected socket until eagain
+ */
+int echoing_read(echoing_buffer * buf) {
+    int total = 0, ret;
+read:
+    //read new data
+    ensure_nonblock((ret = splice(buf->sockfd, 0, buf->pipefd[1], 0, UINT_MAX, SPLICE_F_MORE | SPLICE_F_NONBLOCK)) != -1);
+    if (ret == -1) {//eagain all data read
+        return total;
+    } else if (ret == 0) {//actually means the connection was closed
+        return 0;//notify caller that the connection closed
+    }
+
+    //forward the data out
+readflush:
+    ensure_nonblock((ret = splice(buf->pipefd[0], 0, buf->sockfd, 0, UINT_MAX, SPLICE_F_MORE | SPLICE_F_NONBLOCK)) != -1);
+    if (ret <= 0) {
+        goto read;
+    }
+    total += ret;
+    goto readflush;
+}
+
+int echoing_flush(echoing_buffer * buf) {
+    int total = 0, ret;
+flush:
+    ensure_nonblock((ret = splice(buf->pipefd[0], 0, buf->sockfd, 0, UINT_MAX, SPLICE_F_MORE | SPLICE_F_NONBLOCK)) != -1);
+    if (ret == -1) {
+        return total;
+    }
+    total += ret;
+    goto flush;
 }

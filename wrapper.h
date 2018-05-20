@@ -80,7 +80,6 @@ int add_epoll_fd(int efd, int ifd);
 int add_epoll_ptr_flags(int efd, int ifd, void * ptr, int flags);
 int add_epoll_fd_flags(int efd, int ifd, int flags);
 
-
 //==>connection forwarding wrappers<==
 //functions for forwarding TCP connections
 struct directional_buffer;
@@ -90,8 +89,8 @@ typedef struct directional_buffer {
     struct directional_buffer * paired;
 } directional_buffer;
 
-int forward_read(const directional_buffer * con);
-int forward_flush(const directional_buffer * con);
+int directional_echo(const directional_buffer * con);
+int directional_flush(const directional_buffer * con);
 
 void close_directional_buffer(directional_buffer * con);
 void init_directional_buffer(directional_buffer * in_con, directional_buffer * out_con, int in_fd, int out_fd);
@@ -113,7 +112,6 @@ int udp_buffer_read(udp_buffer * con);
 int udp_buffer_flush(udp_buffer * con);
 
 void init_udp_buffer(udp_buffer * in_con, udp_buffer * out_con);
-void close_udp_buffer(udp_buffer * con);
 
 
 //==> forwarding rule wrappers<==
@@ -133,7 +131,18 @@ typedef struct pairs {
 void add_pairs(pairs ** head, const char * arg);
 void print_pairs(const pairs * head);
 void free_pairs(pairs * head);
+
+//==>connection echoing wrappers<==
+typedef struct echoing_buffer {
+    int sockfd;
+    int pipefd[2];
+} echoing_buffer;
+
+void init_echoing(echoing_buffer * buf, int fd);
+void close_echoing(echoing_buffer * buf);
+
+int echoing_read(echoing_buffer * buf);
+int echoing_flush(echoing_buffer * buf);
+
 #endif
-
-
 
