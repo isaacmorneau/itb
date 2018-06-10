@@ -150,8 +150,9 @@ void close_echoing(echoing_buffer * buf);
 int echoing_read(echoing_buffer * buf);
 int echoing_flush(echoing_buffer * buf);
 
-#endif
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
