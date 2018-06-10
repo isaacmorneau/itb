@@ -1,5 +1,9 @@
 #ifndef WRAPPER_H
 #define WRAPPER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*
  * These wrappers are shared across multiple projects and are collected here
  * to make it easier to add to new projects and backport fixes
@@ -148,3 +152,6 @@ int echoing_flush(echoing_buffer * buf);
 
 #endif
 
+#ifdef __cplusplus
+}
+#endif
