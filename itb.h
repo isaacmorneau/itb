@@ -93,7 +93,7 @@ ITBDEF int itb_send_message(
 
 ITBDEF int itb_make_epoll();
 ITBDEF inline struct epoll_event *itb_make_epoll_events() {
-    return (struct epoll_event *)malloc(sizeof(struct epoll_event) * MAXEVENTS);
+    return (struct epoll_event *)malloc(sizeof(struct epoll_event) * ITB_MAXEVENTS);
 }
 ITBDEF int itb_wait_epoll(int efd, struct epoll_event *events);
 ITBDEF int itb_wait_epoll_timeout(int efd, struct epoll_event *events, int timeout);
@@ -324,13 +324,13 @@ int itb_make_epoll() {
 
 int itb_wait_epoll(int efd, struct epoll_event *restrict events) {
     int ret;
-    ensure((ret = epoll_wait(efd, events, MAXEVENTS, -1)) != -1);
+    ensure((ret = epoll_wait(efd, events, ITB_MAXEVENTS, -1)) != -1);
     return ret;
 }
 
 int itb_wait_epoll_timeout(int efd, struct epoll_event *restrict events, int timeout) {
     int ret;
-    ensure((ret = epoll_wait(efd, events, MAXEVENTS, timeout)) != -1);
+    ensure((ret = epoll_wait(efd, events, ITB_MAXEVENTS, timeout)) != -1);
     return ret;
 }
 
