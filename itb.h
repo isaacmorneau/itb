@@ -456,7 +456,7 @@ void *itb_broadcast_handler(void *unused) {
         pthread_mutex_lock(&itb_queue_mut);
         //update the circ buff and consume the tail
         if (queue.tail != queue.head) {
-            itb_broadcast_msg(queue.buffer[queue.tail]);
+            itb_broadcast_msg(&queue.buffer[queue.tail]);
             int next = queue.tail + 1;
             if (next == ITB_BROADCAST_QUEUE_SIZE) {
                 next = NULL;
