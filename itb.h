@@ -145,6 +145,7 @@ ITBDEF int itb_broadcast_register_callback(
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 
 //==>fd ioctl wrappers<==
@@ -416,7 +417,7 @@ int itb_add_epoll_fd_flags(int efd, int ifd, int flags) {
 //==>broadcast queue<==
 
 typedef struct {
-    broadcast_msg_t buffer[BROADCAST_QUEUE_SIZE];
+    itb_broadcast_msg_t buffer[ITB_BROADCAST_QUEUE_SIZE];
     int head;
     int tail;
 } itb_broadcast_msg_queue_t;
@@ -441,9 +442,9 @@ void *itb_broadcast_handler(void *param) {
         pthread_mutex_lock(&itb_queue_mut);
         //update the circ buff and consume the tail
         if (queue.tail != queue.head) {
-            broadcast_msg(queue.buffer[queue.tail]);
+            itb_broadcast_msg(queue.buffer[queue.tail]);
             int next = queue.tail + 1;
-            if (next == BROADCAST_QUEUE_SIZE) {
+            if (next == ITB_BROADCAST_QUEUE_SIZE) {
                 next = NULL;
             }
             queue.tail = next;
@@ -496,7 +497,7 @@ int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg) {
     pthread_mutex_lock(&itb_queue_mut);
     int next;
     next = queue.head + 1;
-    if (next == BROADCAST_QUEUE_SIZE) {
+    if (next == ITB_BROADCAST_QUEUE_SIZE) {
         next = NULL;
     }
 
