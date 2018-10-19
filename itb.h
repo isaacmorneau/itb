@@ -551,17 +551,17 @@ int itb_broadcast_register_callback(int type, void (*callback)(const itb_broadca
         itb_broadcast_callbacks[type] = malloc(sizeof(void (*)(const itb_broadcast_msg_t *)));
     } else { //expand existing buffer
         void (**temp)(const itb_broadcast_msg_t *);
-        if (!(temp = realloc(itb_broadcast_callback[type],
+        if (!(temp = realloc(itb_broadcast_callbacks[type],
                   sizeof(void (*)(const itb_broadcast_msg_t *))
                       * itb_broadcast_type_totals[type]))) {
             --itb_broadcast_type_totals[type];
             pthread_mutex_unlock(&itb_queue_mut);
             return -1;
         }
-        itb_broadcast_callback[type] = temp;
+        itb_broadcast_callbacks[type] = temp;
     }
 
-    itb_broadcast_callback[type][itb_broadcast_type_totals[type] - 1] = callback;
+    itb_broadcast_callbacks[type][itb_broadcast_type_totals[type] - 1] = callback;
 
     pthread_mutex_unlock(&itb_queue_mut);
     return 0;
