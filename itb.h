@@ -53,6 +53,15 @@ extern "C" {
         }                                                                        \
     } while (0)
 
+#ifndef NDEBUG
+#define itb_debug_only(expr) \
+    do {                     \
+        expr;                \
+    } while (0)
+#else
+#define itb_debug_only(expr) (void)
+#endif
+
 //==>fd ioctl wrappers<==
 //the wrappers for ioctl of both sockets and the program itself
 ITBDEF void itb_set_fd_limit();
