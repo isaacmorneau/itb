@@ -57,18 +57,18 @@ extern "C" {
     } while (0)
 #else
 #define itb_debug_only(expr) (void)
-#define itb_ensure(expr)                                                         \
-    do {                                                                         \
-        if (!(expr)) {                                                           \
-            exit(errno);                                                         \
-        }                                                                        \
+#define itb_ensure(expr) \
+    do {                 \
+        if (!(expr)) {   \
+            exit(errno); \
+        }                \
     } while (0)
 
-#define itb_ensure_nonblock(expr)                                                \
-    do {                                                                         \
-        if (!(expr) && errno != EAGAIN) {                                        \
-            exit(errno);                                                         \
-        }                                                                        \
+#define itb_ensure_nonblock(expr)         \
+    do {                                  \
+        if (!(expr) && errno != EAGAIN) { \
+            exit(errno);                  \
+        }                                 \
     } while (0)
 #endif
 
@@ -157,9 +157,11 @@ ITBDEF int itb_broadcast_register_callback(
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 //==>fd ioctl wrappers<==
 void itb_set_fd_limit(void) {
