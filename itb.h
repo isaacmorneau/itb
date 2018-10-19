@@ -461,7 +461,7 @@ void *itb_broadcast_handler(void *unused) {
             itb_broadcast_msg(&queue.buffer[queue.tail]);
             int next = queue.tail + 1;
             if (next == ITB_BROADCAST_QUEUE_SIZE) {
-                next = NULL;
+                next = 0;
             }
             queue.tail = next;
         }
@@ -509,18 +509,19 @@ void itb_broadcast_msg(const itb_broadcast_msg_t *restrict msg) {
 
 int itb_broadcast_queue_msg(const itb_broadcast_msg_t *restrict msg) {
     pthread_mutex_lock(&itb_queue_mut);
-    int next;
-    next = queue.head + 1;
+    int next = queue.head;
+
     if (next == ITB_BROADCAST_QUEUE_SIZE) {
         next = 0;
     }
 
-    if (next == queue.tail) {
+    if (next + 1 == queue.tail) {
         pthread_mutex_unlock(&itb_queue_mut);
         return -1; //queue full
     }
-    queue.buffer[next] = *msg;
-    queue.head         = next;
+
+    queue.buffer[next++] = *msg;
+    queue.head           = next;
 
     pthread_mutex_unlock(&itb_queue_mut);
     sem_post(&itb_queue_sem);
