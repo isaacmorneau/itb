@@ -115,7 +115,6 @@ ITBDEF int itb_add_epoll_fd_flags(int efd, int ifd, int flags);
 //==>broadcast queue<==
 
 typedef struct {
-    //TODO generate all types based on the number of unique event strings
     int type;
     union {
         int flag;
@@ -135,7 +134,7 @@ ITBDEF int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg);
 
 //handle an aditional type
 //returns the type or -1 on error
-ITBDEF int itb_broadcast_register_type();
+ITBDEF int itb_broadcast_register_type(void);
 //hook callback to type
 ITBDEF int itb_broadcast_register_callback(
     int type, void (*callback)(const itb_broadcast_msg_t *msg));
