@@ -200,7 +200,7 @@ int itb_make_connected(const char *address, const char *port) {
 
     freeaddrinfo(result);
 
-    set_non_blocking(sfd);
+    itb_set_non_blocking(sfd);
     return sfd;
 }
 
@@ -237,7 +237,7 @@ int itb_make_bound_tcp(const char *port) {
 
     freeaddrinfo(result);
 
-    set_non_blocking(sfd);
+    itb_set_non_blocking(sfd);
     return sfd;
 }
 
