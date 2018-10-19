@@ -15,7 +15,7 @@ extern "C" {
 
 //dont trust users, warn them if they didnt implement it by the second include
 #ifndef ITB_IMPLEMENTATION
-#warning "ITB_IMPLEMENTATION still not defined by second include. Don't forget to implement."
+#pragma GCC warning "ITB_IMPLEMENTATION still not defined by second include. Don't forget to implement."
 #endif
 
 #else //ifndef
