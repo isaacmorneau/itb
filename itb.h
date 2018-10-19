@@ -99,9 +99,7 @@ ITBDEF int itb_send_message(
 #define ITB_EVENT_PTR(events, i) (events[i].data.ptr)
 
 ITBDEF int itb_make_epoll();
-ITBDEF inline struct epoll_event *itb_make_epoll_events() {
-    return (struct epoll_event *)malloc(sizeof(struct epoll_event) * ITB_MAXEVENTS);
-}
+ITBDEF struct epoll_event *itb_make_epoll_events();
 ITBDEF int itb_wait_epoll(int efd, struct epoll_event *events);
 ITBDEF int itb_wait_epoll_timeout(int efd, struct epoll_event *events, int timeout);
 ITBDEF int itb_add_epoll_ptr(int efd, int ifd, void *ptr);
@@ -358,6 +356,9 @@ int itb_send_message(int sockfd, const char *restrict buffer, int len,
 }
 
 //==>epoll wrappers<==
+struct epoll_event *itb_make_epoll_events() {
+    return (struct epoll_event *)malloc(sizeof(struct epoll_event) * ITB_MAXEVENTS);
+}
 int itb_make_epoll() {
     int efd;
     ensure((efd = epoll_create1(EPOLL_CLOEXEC)) != -1);
