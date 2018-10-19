@@ -74,7 +74,7 @@ extern "C" {
 
 //==>fd ioctl wrappers<==
 //the wrappers for ioctl of both sockets and the program itself
-ITBDEF void itb_set_fd_limit();
+ITBDEF void itb_set_fd_limit(void);
 ITBDEF void itb_set_non_blocking(int sfd);
 
 //==>ip wrappers<==
@@ -137,10 +137,10 @@ ITBDEF void itb_broadcast_close(void);
 
 //blocking call, avoid use
 //  ie for critical messages
-ITBDEF void itb_broadcast_msg(const itb_broadcast_msg_t msg);
+ITBDEF void itb_broadcast_msg(const itb_broadcast_msg_t *msg);
 
 //non blocking, prefer this method
-ITBDEF int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg);
+ITBDEF int itb_broadcast_queue_msg(const itb_broadcast_msg_t *msg);
 
 //handle an aditional type
 //returns the type or -1 on error
@@ -162,7 +162,7 @@ ITBDEF int itb_broadcast_register_callback(
 #include <sys/stat.h>
 
 //==>fd ioctl wrappers<==
-void itb_set_fd_limit() {
+void itb_set_fd_limit(void) {
     struct rlimit lim;
     //the kernel patch that allows for RLIM_INFINITY to work breaks stuff
     //so we are restricted to finite values,
@@ -325,7 +325,7 @@ readmsg:
     goto readmsg;
 }
 
-int itb_read_message_port(int sockfd, char *restrict buffer, int len, int *port) {
+int itb_read_message_port(int sockfd, char *restrict buffer, int len, int *restrict port) {
     struct sockaddr_storage addr;
     socklen_t addr_len;
     char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
@@ -373,7 +373,7 @@ int itb_send_message(int sockfd, const char *restrict buffer, int len,
 struct epoll_event *itb_make_epoll_events() {
     return (struct epoll_event *)malloc(sizeof(struct epoll_event) * ITB_MAXEVENTS);
 }
-int itb_make_epoll() {
+int itb_make_epoll(void) {
     int efd;
     itb_ensure((efd = epoll_create1(EPOLL_CLOEXEC)) != -1);
     return efd;
@@ -496,16 +496,16 @@ void itb_broadcast_close(void) {
     itb_broadcast_callbacks   = NULL;
 }
 
-void itb_broadcast_msg(const itb_broadcast_msg_t msg) {
+void itb_broadcast_msg(const itb_broadcast_msg_t *restrict msg) {
     //only broadcast one at a time
     pthread_mutex_lock(&itb_broadcast_mut);
-    for (int j = 0; j < itb_broadcast_type_totals[msg.type]; ++j) {
-        itb_broadcast_callbacks[msg.type][j](&msg);
+    for (int j = 0; j < itb_broadcast_type_totals[msg->type]; ++j) {
+        itb_broadcast_callbacks[msg->type][j](msg);
     }
     pthread_mutex_unlock(&itb_broadcast_mut);
 }
 
-int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg) {
+int itb_broadcast_queue_msg(const itb_broadcast_msg_t *restrict msg) {
     pthread_mutex_lock(&itb_queue_mut);
     int next;
     next = queue.head + 1;
@@ -517,7 +517,7 @@ int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg) {
         pthread_mutex_unlock(&itb_queue_mut);
         return -1; //queue full
     }
-    queue.buffer[next] = msg;
+    queue.buffer[next] = *msg;
     queue.head         = next;
 
     pthread_mutex_unlock(&itb_queue_mut);
