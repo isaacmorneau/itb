@@ -156,19 +156,19 @@ void itb_set_fd_limit() {
     //this was found as the exact max via trial and error
     lim.rlim_cur = (1UL << 20);
     lim.rlim_max = (1UL << 20);
-    ensure(setrlimit(RLIMIT_NOFILE, &lim) != -1);
+    itb_ensure(setrlimit(RLIMIT_NOFILE, &lim) != -1);
 }
 
 void itb_set_non_blocking(int sfd) {
     int flags;
-    ensure((flags = fcntl(sfd, F_GETFL, 0)) != -1);
+    itb_ensure((flags = fcntl(sfd, F_GETFL, 0)) != -1);
     flags |= O_NONBLOCK;
-    ensure(fcntl(sfd, F_SETFL, flags) != -1);
+    itb_ensure(fcntl(sfd, F_SETFL, flags) != -1);
 }
 
 //==>tcp wrappers<==
 void itb_set_listening(int sfd) {
-    ensure(listen(sfd, SOMAXCONN) != -1);
+    itb_ensure(listen(sfd, SOMAXCONN) != -1);
 }
 
 int itb_make_connected(const char *address, const char *port) {
@@ -181,7 +181,7 @@ int itb_make_connected(const char *address, const char *port) {
     hints.ai_socktype = SOCK_STREAM; // We want a TCP socket
     hints.ai_flags    = AI_PASSIVE; // All interfaces
 
-    ensure(getaddrinfo(address, port, &hints, &result) == 0);
+    itb_ensure(getaddrinfo(address, port, &hints, &result) == 0);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         if ((sfd = socket(rp->ai_family, rp->ai_socktype | SOCK_CLOEXEC, rp->ai_protocol)) == -1) {
@@ -195,7 +195,7 @@ int itb_make_connected(const char *address, const char *port) {
         close(sfd);
     }
 
-    ensure(rp != NULL);
+    itb_ensure(rp != NULL);
 
     freeaddrinfo(result);
 
@@ -214,7 +214,7 @@ int itb_make_bound_tcp(const char *port) {
     hints.ai_flags    = AI_PASSIVE; // All interfaces
 
     //NULL host will bind to local
-    ensure(getaddrinfo(NULL, port, &hints, &result) == 0);
+    itb_ensure(getaddrinfo(NULL, port, &hints, &result) == 0);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         if ((sfd = socket(rp->ai_family, rp->ai_socktype | SOCK_CLOEXEC, rp->ai_protocol)) == -1) {
@@ -222,7 +222,7 @@ int itb_make_bound_tcp(const char *port) {
         }
 
         int enable = 1;
-        ensure(setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != -1);
+        itb_ensure(setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != -1);
 
         if (!bind(sfd, rp->ai_addr, rp->ai_addrlen)) {
             //we managed to bind successfully
@@ -232,7 +232,7 @@ int itb_make_bound_tcp(const char *port) {
         close(sfd);
     }
 
-    ensure(rp != NULL);
+    itb_ensure(rp != NULL);
 
     freeaddrinfo(result);
 
@@ -242,14 +242,14 @@ int itb_make_bound_tcp(const char *port) {
 
 int itb_accept_blind(int sfd) {
     int ret;
-    ensure_nonblock((ret = accept(sfd, 0, 0)) != -1);
+    itb_ensure_nonblock((ret = accept(sfd, 0, 0)) != -1);
     return ret;
 }
 
 int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
     int ret;
     socklen_t len = sizeof(struct sockaddr_storage);
-    ensure_nonblock((ret = accept(sfd, (struct sockaddr *)addr, &len)) != -1);
+    itb_ensure_nonblock((ret = accept(sfd, (struct sockaddr *)addr, &len)) != -1);
     return ret;
 }
 
@@ -265,11 +265,11 @@ void itb_itb_make_storage(
     hints.ai_flags    = AI_PASSIVE; // All interfaces
 
     //null the service as it only accepts strings and we have the port already
-    ensure(getaddrinfo(host, NULL, &hints, &rp) == 0);
+    itb_ensure(getaddrinfo(host, NULL, &hints, &rp) == 0);
 
     //assuming the first result returned will be correct
     //TODO find a way to check
-    ensure(rp);
+    itb_ensure(rp);
 
     //add the port manually
     if (rp->ai_family == AF_INET) {
@@ -288,7 +288,7 @@ int itb_make_bound_udp(int port) {
     struct sockaddr_in sin;
     int sockfd;
 
-    ensure((sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) != -1);
+    itb_ensure((sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) != -1);
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -296,8 +296,8 @@ int itb_make_bound_udp(int port) {
     sin.sin_family      = AF_INET;
 
     int enable = 1;
-    ensure(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != -1);
-    ensure(bind(sockfd, (struct sockaddr *)&sin, sizeof(sin)) != -1);
+    itb_ensure(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != -1);
+    itb_ensure(bind(sockfd, (struct sockaddr *)&sin, sizeof(sin)) != -1);
 
     return sockfd;
 }
@@ -305,7 +305,7 @@ int itb_make_bound_udp(int port) {
 int itb_read_message(int sockfd, char *restrict buffer, int len) {
     int total = 0, ret;
 readmsg:
-    ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0, NULL, NULL)) != -1);
+    itb_ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0, NULL, NULL)) != -1);
     if (ret == -1)
         return total;
     total += ret;
@@ -319,13 +319,13 @@ int itb_read_message_port(int sockfd, char *restrict buffer, int len, int *port)
     int total = 0, ret;
 readmsg:
     addr_len = sizeof(struct sockaddr_storage);
-    ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0,
+    itb_ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0,
                          (struct sockaddr *)&addr, &addr_len))
         != -1);
     if (ret == -1)
         return total;
     total += ret;
-    ensure(getnameinfo((struct sockaddr *)&addr, addr_len, hbuf, sizeof(hbuf), sbuf, sizeof(hbuf),
+    itb_ensure(getnameinfo((struct sockaddr *)&addr, addr_len, hbuf, sizeof(hbuf), sbuf, sizeof(hbuf),
                NI_NUMERICHOST | NI_NUMERICSERV | NI_DGRAM)
         == 0);
     *port = atoi(sbuf);
@@ -338,7 +338,7 @@ int itb_read_message_addr(
     int total = 0, ret;
 readmsg:
     addr_len = sizeof(struct sockaddr_storage);
-    ensure_nonblock(
+    itb_ensure_nonblock(
         (ret = recvfrom(sockfd, buffer + total, len - total, 0, (struct sockaddr *)addr, &addr_len))
         != -1);
     if (ret == -1)
@@ -351,7 +351,7 @@ int itb_send_message(int sockfd, const char *restrict buffer, int len,
     const struct sockaddr_storage *restrict addr) {
     int ret;
     socklen_t addr_len = sizeof(struct sockaddr_storage);
-    ensure_nonblock(
+    itb_ensure_nonblock(
         (ret = sendto(sockfd, buffer, len, 0, (struct sockaddr *)addr, addr_len)) != -1);
     return ret;
 }
@@ -362,19 +362,19 @@ struct epoll_event *itb_make_epoll_events() {
 }
 int itb_make_epoll() {
     int efd;
-    ensure((efd = epoll_create1(EPOLL_CLOEXEC)) != -1);
+    itb_ensure((efd = epoll_create1(EPOLL_CLOEXEC)) != -1);
     return efd;
 }
 
 int itb_wait_epoll(int efd, struct epoll_event *restrict events) {
     int ret;
-    ensure((ret = epoll_wait(efd, events, ITB_MAXEVENTS, -1)) != -1);
+    itb_ensure((ret = epoll_wait(efd, events, ITB_MAXEVENTS, -1)) != -1);
     return ret;
 }
 
 int itb_wait_epoll_timeout(int efd, struct epoll_event *restrict events, int timeout) {
     int ret;
-    ensure((ret = epoll_wait(efd, events, ITB_MAXEVENTS, timeout)) != -1);
+    itb_ensure((ret = epoll_wait(efd, events, ITB_MAXEVENTS, timeout)) != -1);
     return ret;
 }
 
@@ -383,7 +383,7 @@ int itb_add_epoll_ptr(int efd, int ifd, void *ptr) {
     static struct epoll_event event;
     event.data.ptr = ptr;
     event.events   = EPOLLOUT | EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
-    ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
     return ret;
 }
 
@@ -392,7 +392,7 @@ int itb_add_epoll_ptr_flags(int efd, int ifd, void *ptr, int flags) {
     static struct epoll_event event;
     event.data.ptr = ptr;
     event.events   = flags;
-    ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
     return ret;
 }
 
@@ -401,7 +401,7 @@ int itb_add_epoll_fd(int efd, int ifd) {
     static struct epoll_event event;
     event.data.fd = ifd;
     event.events  = EPOLLOUT | EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
-    ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
     return ret;
 }
 
@@ -410,7 +410,7 @@ int itb_add_epoll_fd_flags(int efd, int ifd, int flags) {
     static struct epoll_event event;
     event.data.fd = ifd;
     event.events  = flags;
-    ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
     return ret;
 }
 
