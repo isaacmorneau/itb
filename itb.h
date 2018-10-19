@@ -2,7 +2,7 @@
  * These wrappers are shared across multiple projects and are collected here
  * to make it easier to add to new projects and backport fixes
  *
- * use `#define ITB_NETWORKING_IMPLEMENTATION` before including to create the implemenation
+ * use `#define ITB_IMPLEMENTATION` before including to create the implemenation
  *
  * inspired by https://github.com/nothings/stb/, thanks Sean
  */
@@ -11,22 +11,27 @@
 extern "C" {
 #endif
 
-#ifdef ITB_NETWORKING_H
+#ifdef ITB_H
 
 //dont trust users, warn them if they didnt implement it by the second include
-#ifndef ITB_NETWORKING_IMPLEMENTATION
-#warning \
-    "ITB_NETWORKING_IMPLEMENTATION still not defined by second include. Don't forget to implement."
+#ifndef ITB_IMPLEMENTATION
+#warning "ITB_IMPLEMENTATION still not defined by second include. Don't forget to implement."
 #endif
 
 #else //ifndef
-#define ITB_NETWORKING_H
+#define ITB_H
 
+//==>configureable defines<==
 //allow either static or extern linking
-#ifdef ITB_STATIC_NETWORKING
+#ifdef ITB_STATIC
 #define ITBDEF static
 #else
 #define ITBDEF extern
+#endif
+
+//allow different broadcast queue sizes
+#ifndef ITB_BROADCAST_QUEUE_SIZE
+#define ITB_BROADCAST_QUEUE_SIZE 16
 #endif
 
 #include <netdb.h>
@@ -113,9 +118,45 @@ ITBDEF int itb_add_epoll_fd(int efd, int ifd);
 #define ITB_EVENT_ONLY_IN (EPOLLIN | EPOLLET | EPOLLEXCLUSIVE)
 ITBDEF int itb_add_epoll_ptr_flags(int efd, int ifd, void *ptr, int flags);
 ITBDEF int itb_add_epoll_fd_flags(int efd, int ifd, int flags);
+
+//==>broadcast queue<==
+
+typedef struct {
+    //TODO generate all types based on the number of unique event strings
+    int type;
+    union {
+        int flag;
+        void *data;
+    } extra;
+} itb_broadcast_msg_t;
+
+ITBDEF void itb_broadcast_init(void);
+ITBDEF void itb_broadcast_close(void);
+
+//blocking call, avoid use
+//  ie for critical messages
+ITBDEF void itb_broadcast_msg(const itb_broadcast_msg_t msg);
+
+//non blocking, prefer this method
+ITBDEF int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg);
+
+//handle an aditional type
+//returns the type or -1 on error
+ITBDEF int itb_broadcast_register_type();
+//hook callback to type
+ITBDEF int itb_broadcast_register_callback(
+    int type, void (*callback)(const itb_broadcast_msg_t *msg));
+
 #endif
 
-#ifdef ITB_NETWORKING_IMPLEMENTATION
+#ifdef ITB_IMPLEMENTATION
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <sys/stat.h>
+
 //==>fd ioctl wrappers<==
 void itb_set_fd_limit() {
     struct rlimit lim;
@@ -379,7 +420,160 @@ int itb_add_epoll_fd_flags(int efd, int ifd, int flags) {
     return ret;
 }
 
-#endif //ITB_NETWORKING_IMPLEMENTATION
+//==>broadcast queue<==
+
+typedef struct {
+    broadcast_msg_t buffer[BROADCAST_QUEUE_SIZE];
+    int head;
+    int tail;
+} itb_broadcast_msg_queue_t;
+
+//itb_broadcast file globals
+itb_broadcast_msg_queue_t queue;
+sem_t itb_queue_sem;
+pthread_mutex_t itb_queue_mut     = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t itb_broadcast_mut = PTHREAD_MUTEX_INITIALIZER;
+
+int itb_broadcast_total_types = 0;
+//how many callbacks there are per message index pos
+int *itb_broadcast_type_totals = NULL;
+//the callbacks array indexed by type and type_totals
+void (***itb_broadcast_callbacks)(const itb_broadcast_msg_t *msg) = NULL;
+
+void *itb_broadcast_handler(void *param) {
+    while (1) {
+        //wait for a message to be queued
+        sem_wait(&itb_queue_sem);
+        //dont let further circ buff modifications happen yet
+        pthread_mutex_lock(&itb_queue_mut);
+        //update the circ buff and consume the tail
+        if (queue.tail != queue.head) {
+            broadcast_msg(queue.buffer[queue.tail]);
+            int next = queue.tail + 1;
+            if (next == BROADCAST_QUEUE_SIZE) {
+                next = NULL;
+            }
+            queue.tail = next;
+        }
+        pthread_mutex_unlock(&itb_queue_mut);
+    }
+    return 0;
+}
+
+void itb_broadcast_init(void) {
+    queue.head = 0;
+    queue.tail = 0;
+    if (!sem_init(&itb_queue_sem, 0, 0)) {
+        perror("sem_init");
+    }
+    //spin up the broadcast msg consuming thread
+    pthread_t th_id;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_create(&th_id, &attr, itb_broadcast_handler, 0);
+    pthread_detach(th_id);
+}
+
+void itb_broadcast_close(void) {
+    sem_close(&itb_queue_sem);
+    pthread_mutex_destroy(&itb_queue_mut);
+    pthread_mutex_destroy(&itb_broadcast_mut);
+
+    for (int i = 0; i < itb_broadcast_total_types; ++i) {
+        free(itb_broadcast_callbacks[i]);
+    }
+    free(itb_broadcast_callbacks);
+    free(itb_broadcast_type_totals);
+
+    itb_broadcast_total_types = 0;
+    itb_broadcast_type_totals = NULL;
+    itb_broadcast_callbacks   = NULL;
+}
+
+void itb_broadcast_msg(const itb_broadcast_msg_t msg) {
+    //only broadcast one at a time
+    pthread_mutex_lock(&itb_broadcast_mut);
+    for (int j = 0; j < itb_broadcast_type_totals[msg.type]; ++j) {
+        itb_broadcast_callbacks[msg.type][j](&msg);
+    }
+    pthread_mutex_unlock(&itb_broadcast_mut);
+}
+
+int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg) {
+    pthread_mutex_lock(&itb_queue_mut);
+    int next;
+    next = queue.head + 1;
+    if (next == BROADCAST_QUEUE_SIZE) {
+        next = NULL;
+    }
+
+    if (next == queue.tail) {
+        pthread_mutex_unlock(&itb_queue_mut);
+        return -1; //queue full
+    }
+    queue.buffer[next] = msg;
+    queue.head         = next;
+
+    pthread_mutex_unlock(&itb_queue_mut);
+    sem_post(&itb_queue_sem);
+    return 0; //data pushed
+}
+
+//handle an aditional type
+int itb_broadcast_register_type(void) {
+    pthread_mutex_lock(&itb_queue_mut);
+    ++itb_broadcast_total_types;
+    int *tempbtt;
+    if (!(tempbtt = realloc(itb_broadcast_type_totals, itb_broadcast_total_types * sizeof(int)))) {
+        pthread_mutex_unlock(&itb_queue_mut);
+        return -1; //failed to realloc, OOM maybe
+    }
+
+    int *tempbc;
+    if (!(tempbc = realloc(itb_broadcast_callbacks,
+              itb_broadcast_total_types * sizeof(void (***)(const itb_broadcast_msg_t *))))) {
+        pthread_mutex_unlock(&itb_queue_mut);
+        return -1; //failed to realloc, OOM maybe
+    }
+
+    itb_broadcast_type_totals = tempbtt;
+    itb_broadcast_callbacks   = tempbc;
+
+    //no callbacks are registererd yet
+    itb_broadcast_type_totals[itb_broadcast_total_types - 1] = 0;
+    //the callback buffer is uninitialized
+    itb_broadcast_callbacks[itb_broadcast_total_types - 1] = 0;
+
+    pthread_mutex_unlock(&itb_queue_mut);
+    return itb_broadcast_total_types - 1;
+}
+
+//hook callback to type
+int itb_broadcast_register_callback(int type, void (*callback)(const itb_broadcast_msg_t *msg)) {
+    pthread_mutex_lock(&itb_queue_mut);
+
+    if (itb_broadcast_type_totals[type]++
+        == 0) { //this is the first callback, malloc the new buffer
+        itb_broadcast_callbacks[type] = malloc(sizeof(void (*)(const itb_broadcast_msg_t *)));
+    } else { //expand existing buffer
+        void (**temp)(const itb_broadcast_msg_t *);
+        if (!(temp = realloc(itb_broadcast_callback[type],
+                  sizeof(void (*)(const itb_broadcast_msg_t *))
+                      * itb_broadcast_type_totals[type]))) {
+            --itb_broadcast_type_totals[type];
+            pthread_mutex_unlock(&itb_queue_mut);
+            return -1;
+        }
+        itb_broadcast_callback[type] = temp;
+    }
+
+    itb_broadcast_callback[type][itb_broadcast_type_totals[type] - 1] = callback;
+
+    pthread_mutex_unlock(&itb_queue_mut);
+    return 0;
+}
+
+#endif //ITB_IMPLEMENTATION
 
 #ifdef __cplusplus
 }
