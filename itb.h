@@ -32,6 +32,7 @@ extern "C" {
 #include <sys/epoll.h>
 
 //==>assert macros<==
+#ifndef NDEBUG
 //these have similar functionality to assert but provide more information
 #define itb_ensure(expr)                                                         \
     do {                                                                         \
@@ -50,14 +51,25 @@ extern "C" {
             exit(errno);                                                         \
         }                                                                        \
     } while (0)
-
-#ifndef NDEBUG
 #define itb_debug_only(expr) \
     do {                     \
         expr;                \
     } while (0)
 #else
 #define itb_debug_only(expr) (void)
+#define itb_ensure(expr)                                                         \
+    do {                                                                         \
+        if (!(expr)) {                                                           \
+            exit(errno);                                                         \
+        }                                                                        \
+    } while (0)
+
+#define itb_ensure_nonblock(expr)                                                \
+    do {                                                                         \
+        if (!(expr) && errno != EAGAIN) {                                        \
+            exit(errno);                                                         \
+        }                                                                        \
+    } while (0)
 #endif
 
 //==>fd ioctl wrappers<==
@@ -459,9 +471,7 @@ void *itb_broadcast_handler(void *unused) {
 void itb_broadcast_init(void) {
     queue.head = 0;
     queue.tail = 0;
-    if (!sem_init(&itb_queue_sem, 0, 0)) {
-        perror("sem_init");
-    }
+    itb_ensure(sem_init(&itb_queue_sem, 0, 0) == -1);
     //spin up the broadcast msg consuming thread
     pthread_t th_id;
     pthread_attr_t attr;
