@@ -11,14 +11,7 @@
 extern "C" {
 #endif
 
-#ifdef ITB_H
-
-//dont trust users, warn them if they didnt implement it by the second include
-#ifndef ITB_IMPLEMENTATION
-#pragma GCC warning "ITB_IMPLEMENTATION still not defined by second include. Don't forget to implement."
-#endif
-
-#else //ifndef
+#ifndef ITB_H
 #define ITB_H
 
 //==>configureable defines<==
