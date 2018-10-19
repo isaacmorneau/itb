@@ -471,7 +471,7 @@ void *itb_broadcast_handler(void *unused) {
 void itb_broadcast_init(void) {
     queue.head = 0;
     queue.tail = 0;
-    itb_ensure(sem_init(&itb_queue_sem, 0, 0) == -1);
+    itb_ensure(sem_init(&itb_queue_sem, 0, 0) != -1);
     //spin up the broadcast msg consuming thread
     pthread_t th_id;
     pthread_attr_t attr;
