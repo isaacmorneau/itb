@@ -145,6 +145,7 @@ ITBDEF int itb_broadcast_register_callback(
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 
@@ -320,13 +321,13 @@ int itb_read_message_port(int sockfd, char *restrict buffer, int len, int *port)
 readmsg:
     addr_len = sizeof(struct sockaddr_storage);
     itb_ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0,
-                         (struct sockaddr *)&addr, &addr_len))
+                             (struct sockaddr *)&addr, &addr_len))
         != -1);
     if (ret == -1)
         return total;
     total += ret;
-    itb_ensure(getnameinfo((struct sockaddr *)&addr, addr_len, hbuf, sizeof(hbuf), sbuf, sizeof(hbuf),
-               NI_NUMERICHOST | NI_NUMERICSERV | NI_DGRAM)
+    itb_ensure(getnameinfo((struct sockaddr *)&addr, addr_len, hbuf, sizeof(hbuf), sbuf,
+                   sizeof(hbuf), NI_NUMERICHOST | NI_NUMERICSERV | NI_DGRAM)
         == 0);
     *port = atoi(sbuf);
     goto readmsg;
@@ -434,7 +435,8 @@ int *itb_broadcast_type_totals = NULL;
 //the callbacks array indexed by type and type_totals
 void (***itb_broadcast_callbacks)(const itb_broadcast_msg_t *msg) = NULL;
 
-void *itb_broadcast_handler(void *param) {
+void *itb_broadcast_handler(void *unused) {
+    (void)unused;
     while (1) {
         //wait for a message to be queued
         sem_wait(&itb_queue_sem);
@@ -498,7 +500,7 @@ int itb_broadcast_queue_msg(const itb_broadcast_msg_t msg) {
     int next;
     next = queue.head + 1;
     if (next == ITB_BROADCAST_QUEUE_SIZE) {
-        next = NULL;
+        next = 0;
     }
 
     if (next == queue.tail) {
@@ -523,9 +525,9 @@ int itb_broadcast_register_type(void) {
         return -1; //failed to realloc, OOM maybe
     }
 
-    int *tempbc;
+    void (***tempbc)(const itb_broadcast_msg_t *);
     if (!(tempbc = realloc(itb_broadcast_callbacks,
-              itb_broadcast_total_types * sizeof(void (***)(const itb_broadcast_msg_t *))))) {
+              itb_broadcast_total_types * sizeof(void (**)(const itb_broadcast_msg_t *))))) {
         pthread_mutex_unlock(&itb_queue_mut);
         return -1; //failed to realloc, OOM maybe
     }
