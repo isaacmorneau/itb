@@ -158,7 +158,7 @@ ITBDEF int itb_broadcast_register_callback(
     int type, void (*callback)(const itb_broadcast_msg_t *msg));
 
 //==>quick threading wrappers<==
-pthread_t itb_quickthread(void* (func)(void*), void * param);
+ITBDEF pthread_t itb_quickthread(void* (func)(void*), void * param);
 
 #endif
 
