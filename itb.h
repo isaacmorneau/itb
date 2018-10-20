@@ -22,13 +22,13 @@ extern "C" {
 #define ITBDEF extern
 #endif
 
-#define ITB_ANSI_COLOR_RED     "\x1b[31m"
-#define ITB_ANSI_COLOR_GREEN   "\x1b[32m"
-#define ITB_ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ITB_ANSI_COLOR_BLUE    "\x1b[34m"
+#define ITB_ANSI_COLOR_RED "\x1b[31m"
+#define ITB_ANSI_COLOR_GREEN "\x1b[32m"
+#define ITB_ANSI_COLOR_YELLOW "\x1b[33m"
+#define ITB_ANSI_COLOR_BLUE "\x1b[34m"
 #define ITB_ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ITB_ANSI_COLOR_CYAN    "\x1b[36m"
-#define ITB_ANSI_COLOR_RESET   "\x1b[0m"
+#define ITB_ANSI_COLOR_CYAN "\x1b[36m"
+#define ITB_ANSI_COLOR_RESET "\x1b[0m"
 
 //allow different broadcast queue sizes
 #ifndef ITB_BROADCAST_QUEUE_SIZE
@@ -156,6 +156,9 @@ ITBDEF int itb_broadcast_register_type(void);
 //hook callback to type
 ITBDEF int itb_broadcast_register_callback(
     int type, void (*callback)(const itb_broadcast_msg_t *msg));
+
+//==>quick threading wrappers<==
+pthread_t itb_quickthread(void* (func)(void*), void * param);
 
 #endif
 
@@ -590,6 +593,14 @@ int itb_broadcast_register_callback(int type, void (*callback)(const itb_broadca
     return 0;
 }
 
+pthread_t itb_quickthread(void *(func)(void *), void *param) {
+    pthread_t th_id;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_create(&th_id, &attr, func, param);
+    pthread_detach(th_id);
+    return th_id;
+}
 #endif //ITB_IMPLEMENTATION
 
 #ifdef __cplusplus
