@@ -237,7 +237,9 @@ ITBDEF int itb_vector_remove_at(itb_vector_t *vec, size_t pos);
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 //==>fd ioctl wrappers<==
