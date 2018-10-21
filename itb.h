@@ -431,11 +431,11 @@ int itb_make_epoll(void) {
 
 int itb_wait_epoll(int efd, struct epoll_event *restrict events) {
     int ret;
-    if ((ret = epoll_wait(efd, events, ITB_MAXEVENTS, -1)) != -1) {
+    if ((ret = epoll_wait(efd, events, ITB_MAXEVENTS, -1)) == -1) {
         if (errno == EINTR) {
             return 0;
         }
-        return errno;
+        return -1;
     }
     return ret;
 }
