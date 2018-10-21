@@ -344,12 +344,12 @@ void itb_print_addr(char **buff, struct sockaddr_storage *addr) {
         if (*buff == NULL) {
             *buff = malloc(INET_ADDRSTRLEN);
         }
-        inet_ntop(addr, addr, *buff, sizeof(struct sockaddr_in));
+        inet_ntop(AF_INET, addr, *buff, sizeof(struct sockaddr_in));
     } else {
         if (*buff == NULL) {
             *buff = malloc(INET6_ADDRSTRLEN);
         }
-        inet_ntop(addr, addr, *buff, sizeof(struct sockaddr_in6));
+        inet_ntop(AF_INET6, addr, *buff, sizeof(struct sockaddr_in6));
     }
 }
 
