@@ -99,6 +99,7 @@ ITBDEF void itb_print_addr(char **buff, struct sockaddr_storage *addr);
 //functions for setting up TCP
 ITBDEF void itb_set_listening(int sfd);
 ITBDEF int itb_make_bound_tcp(const char *port);
+ITBDEF int itb_make_tcp();
 ITBDEF int itb_make_connected(const char *address, const char *port);
 ITBDEF int itb_accept_blind(int sfd);
 ITBDEF int itb_accept_addr(int sfd, struct sockaddr_storage *addr);
@@ -106,6 +107,7 @@ ITBDEF int itb_accept_addr(int sfd, struct sockaddr_storage *addr);
 //==>udp wrappers<==
 //functions for setting up UDP
 ITBDEF int itb_make_bound_udp(int port);
+ITBDEF int itb_make_udp();
 ITBDEF int itb_read_message(int sockfd, char *buffer, int len);
 ITBDEF int itb_read_message_addr(int sockfd, char *buffer, int len, struct sockaddr_storage *addr);
 ITBDEF int itb_read_message_port(int sockfd, char *buffer, int len, int *port);
@@ -296,6 +298,11 @@ int itb_make_bound_tcp(const char *port) {
     return sfd;
 }
 
+int itb_make_tcp(void) {
+    int sfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    return sfd;
+}
+
 int itb_accept_blind(int sfd) {
     int ret;
     itb_ensure_nonblock((ret = accept(sfd, 0, 0)) != -1);
@@ -370,6 +377,11 @@ int itb_make_bound_udp(int port) {
     itb_ensure(bind(sockfd, (struct sockaddr *)&sin, sizeof(sin)) != -1);
 
     return sockfd;
+}
+
+int itb_make_udp(void) {
+    int sfd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    return sfd;
 }
 
 int itb_read_message(int sockfd, char *restrict buffer, int len) {
