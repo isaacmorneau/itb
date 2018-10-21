@@ -84,6 +84,9 @@ extern "C" {
         }                                 \
     } while (0)
 #endif
+
+#define ITB_STRINGIFY(param) #param
+
 //==>buffer macros <==
 
 #ifndef ITB_BUFFER_SIZE_TYPE
