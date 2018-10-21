@@ -310,7 +310,7 @@ int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
 }
 
 //==>ip wrappers<==
-void itb_itb_make_storage(
+void itb_make_storage(
     struct sockaddr_storage *restrict addr, const char *restrict host, int port) {
     struct addrinfo hints;
     struct addrinfo *rp;
