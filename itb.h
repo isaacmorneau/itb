@@ -69,7 +69,7 @@ extern "C" {
         expr;                \
     } while (0)
 #else
-#define itb_debug_only(expr) (void)
+#define itb_debug_only(expr)
 #define itb_ensure(expr) \
     do {                 \
         if (!(expr)) {   \
