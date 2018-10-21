@@ -93,6 +93,7 @@ ITBDEF void itb_set_non_blocking(int sfd);
 //==>ip wrappers<==
 //functions shared between UDP and TCP
 ITBDEF void itb_make_storage(struct sockaddr_storage *addr, const char *host, int port);
+ITBDEF void itb_print_addr(FILE* out, struct sockaddr_storage *addr);
 
 //==>tcp wrappers<==
 //functions for setting up TCP
@@ -335,6 +336,12 @@ void itb_itb_make_storage(
     memcpy(addr, rp->ai_addr, rp->ai_addrlen);
 
     freeaddrinfo(rp);
+}
+
+void itb_print_addr(FILE* out, struct sockaddr_storage *addr) {
+    char buff[INET6_ADDRSTRLEN];
+    inet_ntop(((struct sockaddr*)addr)->sa_family, addr, buff, sizeof(sockaddr_storage));
+    fprintf(out, "%s\n", buff);
 }
 
 //==>udp wrappers<==
