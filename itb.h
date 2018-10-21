@@ -93,7 +93,7 @@ ITBDEF void itb_set_non_blocking(int sfd);
 //==>ip wrappers<==
 //functions shared between UDP and TCP
 ITBDEF void itb_make_storage(struct sockaddr_storage *addr, const char *host, int port);
-ITBDEF void itb_print_addr(FILE* out, struct sockaddr_storage *addr);
+ITBDEF void itb_print_addr(char **buff, struct sockaddr_storage *addr);
 
 //==>tcp wrappers<==
 //functions for setting up TCP
@@ -192,6 +192,7 @@ ITBDEF int itb_vector_remove_at(itb_vector_t *vec, size_t pos);
 #endif
 
 #ifdef ITB_IMPLEMENTATION
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -338,10 +339,11 @@ void itb_itb_make_storage(
     freeaddrinfo(rp);
 }
 
-void itb_print_addr(FILE* out, struct sockaddr_storage *addr) {
-    char buff[INET6_ADDRSTRLEN];
-    inet_ntop(((struct sockaddr*)addr)->sa_family, addr, buff, sizeof(struct sockaddr_storage));
-    fprintf(out, "%s\n", buff);
+void itb_print_addr(char **buff, struct sockaddr_storage *addr) {
+    if (*buff == NULL) {
+        *buff = malloc(INET6_ADDRSTRLEN);
+    }
+    inet_ntop(((struct sockaddr *)addr)->sa_family, addr, buff, sizeof(struct sockaddr_storage));
 }
 
 //==>udp wrappers<==
