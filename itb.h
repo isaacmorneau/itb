@@ -132,6 +132,10 @@ ITBDEF int itb_make_connected(const char *address, const char *port);
 ITBDEF int itb_accept_blind(int sfd);
 ITBDEF int itb_accept_addr(int sfd, struct sockaddr_storage *addr);
 
+//==>unix wrappers<==
+ITBDEF int itb_make_bound_unix(const char *path);
+ITBDEF int itb_make_connected_unix(const char *path);
+
 //==>udp wrappers<==
 //functions for setting up UDP
 ITBDEF int itb_make_bound_udp(int port);
@@ -344,6 +348,35 @@ int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
     socklen_t len = sizeof(struct sockaddr_storage);
     itb_ensure_nonblock((ret = accept(sfd, (struct sockaddr *)addr, &len)) != -1);
     return ret;
+}
+//==>unix wrappers<==
+int itb_make_bound_unix(const char *path) {
+    int sfd;
+    itb_ensure(sfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
+
+    struct sockaddr_un su;
+    memset(&su, 0, sizeof(struct sockaddr_un));
+    su.sun_family = AF_UNIX;
+    strcpy(su.sun_path, path);
+
+    unlink(path);
+    itb_ensure(bind(sfd, (struct sockaddr *)&su, sizeof(struct sockaddr_un)) != -1);
+
+    return sfd;
+}
+
+int itb_make_connected_unix(const char *path) {
+    int sfd;
+    itb_ensure(sfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
+
+    struct sockaddr_un su;
+    memset(&su, 0, sizeof(struct sockaddr_un));
+    su.sun_family = AF_UNIX;
+    strcpy(su.sun_path, path);
+
+    itb_ensure(connect(sfd, (struct sockaddr *)&su, sizeof(struct sockaddr_un)) != -1);
+
+    return sfd;
 }
 
 //==>ip wrappers<==
