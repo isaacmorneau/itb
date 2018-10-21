@@ -91,23 +91,23 @@ extern "C" {
 #endif
 
 //how long is your data
-#define ITB_BUFFER_LEN(buffer) (*(ITB_BUFFER_SIZE_TYPE *)buffer)
+#define ITB_BUFFER_LEN(buffer) (*(ITB_BUFFER_SIZE_TYPE *)(buffer))
 //how long is the actual buffer
 #define ITB_BUFFER_ALLOC(buffer) (sizeof(ITB_BUFFER_SIZE_TYPE) + (*(ITB_BUFFER_SIZE_TYPE *)buffer))
 //where is your data
-#define ITB_BUFFER_DATA(buffer) ((void *)((uint8_t *)buffer + sizeof(ITB_BUFFER_SIZE_TYPE)))
+#define ITB_BUFFER_DATA(buffer) ((void *)((uint8_t *)(buffer) + sizeof(ITB_BUFFER_SIZE_TYPE)))
 //allocate a new buffer
-#define ITB_BUFFER_MALLOC(buffer, size)                           \
-    do {                                                          \
-        if (buffer = malloc(size + sizeof(ITB_BUFFER_SIZE_TYPE))) \
-            *((ITB_BUFFER_SIZE_TYPE *)buffer) = size;             \
+#define ITB_BUFFER_MALLOC(buffer, size)                               \
+    do {                                                              \
+        if ((buffer) = malloc((size) + sizeof(ITB_BUFFER_SIZE_TYPE))) \
+            *((ITB_BUFFER_SIZE_TYPE *)(buffer)) = (size);             \
     } while (0)
 //reallocate an existing buffer
-#define ITB_BUFFER_REALLOC(buffer, size)                                   \
-    do {                                                                   \
-        void *temp = buffer;                                               \
-        if (buffer = realloc(buffer, size + sizeof(ITB_BUFFER_SIZE_TYPE))) \
-            *((ITB_BUFFER_SIZE_TYPE *)buffer) = size;                      \
+#define ITB_BUFFER_REALLOC(buffer, size)                                         \
+    do {                                                                         \
+        void *temp = (buffer);                                                   \
+        if ((buffer) = realloc((buffer), (size) + sizeof(ITB_BUFFER_SIZE_TYPE))) \
+            *((ITB_BUFFER_SIZE_TYPE *)(buffer)) = (size);                        \
     } while (0)
 
 //==>fd ioctl wrappers<==
