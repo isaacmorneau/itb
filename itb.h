@@ -340,7 +340,7 @@ void itb_itb_make_storage(
 
 void itb_print_addr(FILE* out, struct sockaddr_storage *addr) {
     char buff[INET6_ADDRSTRLEN];
-    inet_ntop(((struct sockaddr*)addr)->sa_family, addr, buff, sizeof(sockaddr_storage));
+    inet_ntop(((struct sockaddr*)addr)->sa_family, addr, buff, sizeof(struct sockaddr_storage));
     fprintf(out, "%s\n", buff);
 }
 
