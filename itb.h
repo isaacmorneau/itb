@@ -84,6 +84,31 @@ extern "C" {
         }                                 \
     } while (0)
 #endif
+//==>buffer macros <==
+
+#ifndef ITB_BUFFER_SIZE_TYPE
+#define ITB_BUFFER_SIZE_TYPE int32_t
+#endif
+
+//how long is your data
+#define ITB_BUFFER_LEN(buffer) (*(ITB_BUFFER_SIZE_TYPE *)buffer)
+//how long is the actual buffer
+#define ITB_BUFFER_ALLOC(buffer) (sizeof(ITB_BUFFER_SIZE_TYPE) + (*(ITB_BUFFER_SIZE_TYPE *)buffer))
+//where is your data
+#define ITB_BUFFER_DATA(buffer) ((void *)((uint8_t *)buffer + sizeof(ITB_BUFFER_SIZE_TYPE)))
+//allocate a new buffer
+#define ITB_BUFFER_MALLOC(buffer, size)                           \
+    do {                                                          \
+        if (buffer = malloc(size + sizeof(ITB_BUFFER_SIZE_TYPE))) \
+            *((ITB_BUFFER_SIZE_TYPE *)buffer) = size;             \
+    } while (0)
+//reallocate an existing buffer
+#define ITB_BUFFER_REALLOC(buffer, size)                                   \
+    do {                                                                   \
+        void *temp = buffer;                                               \
+        if (buffer = realloc(buffer, size + sizeof(ITB_BUFFER_SIZE_TYPE))) \
+            *((ITB_BUFFER_SIZE_TYPE *)buffer) = size;                      \
+    } while (0)
 
 //==>fd ioctl wrappers<==
 //the wrappers for ioctl of both sockets and the program itself
@@ -169,6 +194,8 @@ ITBDEF int itb_broadcast_register_callback(
 ITBDEF pthread_t itb_quickthread(void *(func)(void *), void *param);
 
 //==>vector<==
+//TODO fully test
+
 //default to doubling
 //usually:tm: memory is cheap and mallocs are slow
 //if you want something different just define your own increase pattern
@@ -317,8 +344,7 @@ int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
 }
 
 //==>ip wrappers<==
-void itb_make_storage(
-    struct sockaddr_storage *restrict addr, const char *restrict host, int port) {
+void itb_make_storage(struct sockaddr_storage *restrict addr, const char *restrict host, int port) {
     struct addrinfo hints;
     struct addrinfo *rp;
 
