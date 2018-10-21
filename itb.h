@@ -340,10 +340,17 @@ void itb_itb_make_storage(
 }
 
 void itb_print_addr(char **buff, struct sockaddr_storage *addr) {
-    if (*buff == NULL) {
-        *buff = malloc(INET6_ADDRSTRLEN);
+    if (((struct sockaddr *)addr)->sa_family == AF_INET) {
+        if (*buff == NULL) {
+            *buff = malloc(INET_ADDRSTRLEN);
+        }
+        inet_ntop(addr, addr, *buff, sizeof(struct sockaddr_in));
+    } else {
+        if (*buff == NULL) {
+            *buff = malloc(INET6_ADDRSTRLEN);
+        }
+        inet_ntop(addr, addr, *buff, sizeof(struct sockaddr_in6));
     }
-    inet_ntop(((struct sockaddr *)addr)->sa_family, addr, *buff, sizeof(struct sockaddr_storage));
 }
 
 //==>udp wrappers<==
