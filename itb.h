@@ -35,6 +35,11 @@ extern "C" {
 #define ITB_BROADCAST_QUEUE_SIZE 16
 #endif
 
+//allow starting at different sizes
+#ifndef ITB_VECTOR_INITIAL_SIZE
+#define ITB_VECTOR_INITIAL_SIZE 2
+#endif
+
 #include <netdb.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
@@ -158,7 +163,30 @@ ITBDEF int itb_broadcast_register_callback(
     int type, void (*callback)(const itb_broadcast_msg_t *msg));
 
 //==>quick threading wrappers<==
-ITBDEF pthread_t itb_quickthread(void* (func)(void*), void * param);
+ITBDEF pthread_t itb_quickthread(void *(func)(void *), void *param);
+
+//==>vector<==
+//default to doubling
+//usually:tm: memory is cheap and mallocs are slow
+//if you want something different just define your own increase pattern
+#ifndef ITB_VECTOR_ENLARGE
+#define ITB_VECTOR_ENLARGE(x) (x *= 2)
+#endif
+
+typedef struct {
+    void *data;
+    size_t size;
+    size_t alloc;
+    size_t _bytes_per;
+} itb_vector_t;
+
+ITBDEF int itb_vector_init(itb_vector_t *vec, size_t member_size);
+ITBDEF int itb_vector_close(itb_vector_t *vec);
+
+ITBDEF void *itb_vector_at(itb_vector_t *vec, size_t pos);
+ITBDEF int itb_vector_push(itb_vector_t *vec, void *item);
+ITBDEF void *itb_vector_pop(itb_vector_t *vec);
+ITBDEF int itb_vector_remove_at(itb_vector_t *vec, size_t pos);
 
 #endif
 
@@ -601,6 +629,73 @@ pthread_t itb_quickthread(void *(func)(void *), void *param) {
     pthread_detach(th_id);
     return th_id;
 }
+//==>vectors<==
+
+//typedef struct {
+//    void *data;
+//    size_t used;
+//    size_t size;
+//    size_t _bytes_per;
+//} itb_vector_t;
+
+int itb_vector_init(itb_vector_t *vec, size_t member_size) {
+    vec->_bytes_per = member_size;
+    vec->size       = 0;
+    vec->alloc      = ITB_VECTOR_INITIAL_SIZE;
+
+    if ((vec->data = malloc(vec->alloc * vec->_bytes_per))) {
+        return 0;
+    }
+    return -1;
+}
+int itb_vector_close(itb_vector_t *vec) {
+    vec->alloc      = 0;
+    vec->size       = 0;
+    vec->_bytes_per = 0;
+    free(vec->data);
+    vec->data = NULL;
+}
+
+void *itb_vector_at(itb_vector_t *vec, size_t pos) {
+    if (pos >= vec->size) {
+        return NULL; //check bounds
+    }
+    return (uint8_t *)vec->data + (pos * vec->_bytes_per);
+}
+int itb_vector_push(itb_vector_t *vec, void *item) {
+    //TODO maybe check if the type is the size of an stdint and use int casts to avoid needing memcpy
+    if (vec->size == vec->alloc) {
+        ITB_VECTOR_ENLARGE(vec->alloc);
+        void *temp = vec->data;
+        if (!(vec->data = realloc(vec->data, vec->alloc * vec->_bytes_per))) {
+            //realloc failed, better restore vec->data
+            vec->data = temp;
+            return 1;
+        }
+    }
+    memcpy((uint8_t *)vec->data + vec->size * vec->_bytes_per, item, vec->_bytes_per);
+    ++(vec->size);
+    return 0;
+}
+void *itb_vector_pop(itb_vector_t *vec) {
+    //return the address and adjust size but dont downsize
+    return (uint8_t *)vec->data + (--(vec->size) * vec->_bytes_per);
+}
+
+int itb_vector_remove_at(itb_vector_t *vec, size_t pos) {
+    if (pos >= vec->size) {
+        return 1; //check bounds
+    }
+    if (pos == vec->size - 1) {
+        //last element (just use pop)
+        --(vec->size);
+        return 0;
+    }
+    memmove((uint8_t *)vec->data + (pos * vec->_bytes_per),
+        (uint8_t *)vec->data + ((pos + 1) * vec->_bytes_per), vec->_bytes_per * (vec->size - pos));
+    return 0;
+}
+
 #endif //ITB_IMPLEMENTATION
 
 #ifdef __cplusplus
