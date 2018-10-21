@@ -343,7 +343,7 @@ void itb_print_addr(char **buff, struct sockaddr_storage *addr) {
     if (*buff == NULL) {
         *buff = malloc(INET6_ADDRSTRLEN);
     }
-    inet_ntop(((struct sockaddr *)addr)->sa_family, addr, buff, sizeof(struct sockaddr_storage));
+    inet_ntop(((struct sockaddr *)addr)->sa_family, addr, *buff, sizeof(struct sockaddr_storage));
 }
 
 //==>udp wrappers<==
