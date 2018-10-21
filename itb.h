@@ -181,7 +181,7 @@ typedef struct {
 } itb_vector_t;
 
 ITBDEF int itb_vector_init(itb_vector_t *vec, size_t member_size);
-ITBDEF int itb_vector_close(itb_vector_t *vec);
+ITBDEF void itb_vector_close(itb_vector_t *vec);
 
 ITBDEF void *itb_vector_at(itb_vector_t *vec, size_t pos);
 ITBDEF int itb_vector_push(itb_vector_t *vec, void *item);
@@ -648,7 +648,7 @@ int itb_vector_init(itb_vector_t *vec, size_t member_size) {
     }
     return -1;
 }
-int itb_vector_close(itb_vector_t *vec) {
+void itb_vector_close(itb_vector_t *vec) {
     vec->alloc      = 0;
     vec->size       = 0;
     vec->_bytes_per = 0;
