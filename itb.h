@@ -97,10 +97,10 @@ extern "C" {
 //where is your data
 #define ITB_BUFFER_DATA(buffer) ((void *)((uint8_t *)(buffer) + sizeof(ITB_BUFFER_SIZE_TYPE)))
 //allocate a new buffer
-#define ITB_BUFFER_MALLOC(buffer, size)                               \
-    do {                                                              \
-        if ((buffer) = malloc((size) + sizeof(ITB_BUFFER_SIZE_TYPE))) \
-            *((ITB_BUFFER_SIZE_TYPE *)(buffer)) = (size);             \
+#define ITB_BUFFER_MALLOC(buffer, size)                                 \
+    do {                                                                \
+        if (((buffer) = malloc((size) + sizeof(ITB_BUFFER_SIZE_TYPE)))) \
+            *((ITB_BUFFER_SIZE_TYPE *)(buffer)) = (size);               \
     } while (0)
 //reallocate an existing buffer
 #define ITB_BUFFER_REALLOC(buffer, size)                                         \
