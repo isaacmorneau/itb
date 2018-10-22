@@ -354,7 +354,7 @@ int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
 //==>unix wrappers<==
 int itb_make_bound_unix(const char *path) {
     int sfd;
-    itb_ensure(sfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
+    itb_ensure(sfd = socket(AF_UNIX, SOCK_STREAM, 0));
 
     struct sockaddr_un su;
     memset(&su, 0, sizeof(struct sockaddr_un));
@@ -369,7 +369,7 @@ int itb_make_bound_unix(const char *path) {
 
 int itb_make_connected_unix(const char *path) {
     int sfd;
-    itb_ensure(sfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
+    itb_ensure(sfd = socket(AF_UNIX, SOCK_STREAM, 0));
 
     struct sockaddr_un su;
     memset(&su, 0, sizeof(struct sockaddr_un));
