@@ -22,14 +22,6 @@ extern "C" {
 #define ITBDEF extern
 #endif
 
-#define ITB_ANSI_COLOR_RED "\x1b[31m"
-#define ITB_ANSI_COLOR_GREEN "\x1b[32m"
-#define ITB_ANSI_COLOR_YELLOW "\x1b[33m"
-#define ITB_ANSI_COLOR_BLUE "\x1b[34m"
-#define ITB_ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ITB_ANSI_COLOR_CYAN "\x1b[36m"
-#define ITB_ANSI_COLOR_RESET "\x1b[0m"
-
 //allow different broadcast queue sizes
 #ifndef ITB_BROADCAST_QUEUE_SIZE
 #define ITB_BROADCAST_QUEUE_SIZE 16
