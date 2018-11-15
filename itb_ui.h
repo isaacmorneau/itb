@@ -75,6 +75,9 @@ ITBDEF itb_menu_item_t* itb_menu_item_callback(const char* text, void (*callback
 ITBDEF itb_menu_item_t* itb_menu_item_menu(const char* text, itb_menu_t* menu);
 ITBDEF itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag);
 
+ITBDEF void itb_menu_print(const itb_menu_t* menu);
+ITBDEF void itb_menu_run(const itb_menu_t* menu);
+
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
 #include <stdarg.h>
@@ -104,24 +107,21 @@ void itb_menu_close(itb_menu_t* menu) {
         free(menu->items);
     }
 
-    //allocated seperately and needs freeing
-    if (menu->header) {
-        free(menu);
-    }
-
-    //check if the menu itself needs freeing
+    //check if the menu itself needs freeing, includes header
     if (menu->free_on_close) {
         free(menu);
+    } else { //allocated seperately and needs freeing
+        free(menu->header);
     }
 }
 
 void itb_menu_item_close(itb_menu_item_t* item) {
     if (item->type == MENU) { //might need recursion, it will free itself as needed
         itb_menu_close(item->extra.menu);
-    } else { //dont need special handling just free the pointer
-        if (item->free_on_close) {
-            free(item);
-        }
+    }
+    //dont need special handling just free the pointer
+    if (item->free_on_close) {
+        free(item);
     }
 }
 
@@ -171,6 +171,7 @@ itb_menu_item_t* itb_menu_item_label(const char* text) {
     }
     return NULL;
 }
+
 itb_menu_item_t* itb_menu_item_callback(const char* text, void (*callback)(void)) {
     size_t len            = strlen(text) + 1;
     itb_menu_item_t* temp = malloc(sizeof(itb_menu_item_t) + len);
@@ -184,6 +185,7 @@ itb_menu_item_t* itb_menu_item_callback(const char* text, void (*callback)(void)
     }
     return NULL;
 }
+
 itb_menu_item_t* itb_menu_item_menu(const char* text, itb_menu_t* menu) {
     size_t len            = strlen(text) + 1;
     itb_menu_item_t* temp = malloc(sizeof(itb_menu_item_t) + len);
@@ -197,6 +199,7 @@ itb_menu_item_t* itb_menu_item_menu(const char* text, itb_menu_t* menu) {
     }
     return NULL;
 }
+
 itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag) {
     size_t len            = strlen(text) + 1;
     itb_menu_item_t* temp = malloc(sizeof(itb_menu_item_t) + len);
@@ -209,6 +212,19 @@ itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag) {
         return temp;
     }
     return NULL;
+}
+
+void itb_menu_print(const itb_menu_t* menu) {
+    printf("<%s>\n", menu->header);
+    for (size_t i = 0; i < menu->total_items; ++i) {
+        printf("[%lu] %s\n", i, menu->items[i]->label);
+    }
+}
+void itb_menu_run(const itb_menu_t* menu) {
+    while (1) {
+        itb_menu_print(menu);
+        //get input do options
+    }
 }
 
 #endif //ITB_UI_IMPLEMENTATION
