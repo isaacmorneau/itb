@@ -7,6 +7,8 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <unistd.h>
 
 //==>configureable defines<==
 //allow either static or extern linking
@@ -78,6 +80,9 @@ ITBDEF itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag);
 ITBDEF void itb_menu_print(const itb_menu_t* menu);
 ITBDEF void itb_menu_run(const itb_menu_t* menu);
 
+//- errno on error or len of total read
+// will clear trailing input on read, terminates with '\0' not '\n'
+ITBDEF ssize_t itb_readline(uint8_t* buffer, size_t len);
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
 #include <stdarg.h>
@@ -220,11 +225,47 @@ void itb_menu_print(const itb_menu_t* menu) {
         printf("[%lu] %s\n", i, menu->items[i]->label);
     }
 }
+
 void itb_menu_run(const itb_menu_t* menu) {
+    uint8_t buffer[64];
+    ssize_t nread;
     while (1) {
         itb_menu_print(menu);
-        //get input do options
+        if ((nread = itb_readline(buffer, 64)) > 0) {
+            printf("input %lu %s\n", nread, buffer);
+        }
     }
+}
+
+ssize_t itb_readline(uint8_t* buffer, size_t len) {
+    ssize_t nread;
+
+    if ((nread = read(STDIN_FILENO, buffer, len)) == -1) {
+        perror("read stdin");
+        return -errno;
+    }
+
+    if (!nread) {
+        return 0;
+    }
+
+    if (nread == (ssize_t)len) { // full read: either exact or trailing input
+        if (buffer[nread - 1] != '\n') { //trailing input
+            uint8_t tmp[256];
+            ssize_t tmpread;
+            //wipe out trailing input
+            do {
+                tmpread = read(STDIN_FILENO, tmp, 256);
+                //if its negative its an error so quit
+                //if its exact theres either more to read or it was a line that fit perfectly and would end in '\n'
+            } while (tmpread != -1 && tmpread == 256 && tmp[tmpread - 1] != '\n');
+        }
+        //} else { exact match fall through and replace the '\n' with a '\0'
+    }
+
+    buffer[nread - 1] = '\0'; //replace '\n' with '\0' or cuts out input thats too long
+
+    return nread;
 }
 
 #endif //ITB_UI_IMPLEMENTATION

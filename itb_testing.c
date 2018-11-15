@@ -24,6 +24,8 @@ int main(void) {
         itb_menu_item_toggle("testing toggle", &toggle), NULL);
     itb_menu_print(&mainmenu);
 
+    itb_menu_run(&mainmenu);
+
     printf("final toggle value: %c\n", toggle ? 't' : 'f');
 
     itb_menu_close(&mainmenu);
