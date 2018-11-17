@@ -22,7 +22,6 @@ int main(void) {
         itb_menu_item_callback("testing callback", test_callback),
         itb_menu_item_menu("testing sub menu", &submenu),
         itb_menu_item_toggle("testing toggle", &toggle), NULL);
-    itb_menu_print(&mainmenu);
 
     itb_menu_run(&mainmenu);
 

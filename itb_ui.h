@@ -228,11 +228,21 @@ void itb_menu_print(const itb_menu_t* menu) {
 
 void itb_menu_run(const itb_menu_t* menu) {
     uint8_t buffer[64];
-    ssize_t nread;
+    char *start = (char*)buffer, *end;
+    ssize_t nread, sel = 0;
     while (1) {
         itb_menu_print(menu);
+        puts("> ");
+    invalid:
         if ((nread = itb_readline(buffer, 64)) > 0) {
-            printf("input %lu %s\n", nread, buffer);
+            sel = strtoll(start, &end, 10);
+
+            if (start == end) { //thats not an int
+                puts("invalid input\n> ");
+                goto invalid;
+            }
+
+            printf("selected %lu\n", sel);
         }
     }
 }
