@@ -238,9 +238,9 @@ void itb_menu_run(const itb_menu_t* menu) {
     ssize_t nread, sel = 0;
     while (1) {
         itb_menu_print(menu);
+    invalid:
         printf("> ");
         fflush(stdout);
-    invalid:
         if ((nread = itb_readline(buffer, 64)) > 0) {
             sel = strtoll(start, &end, 10);
             sel -= 1; //ui uses 1 based for number row but internally we want it zero based
@@ -254,7 +254,7 @@ void itb_menu_run(const itb_menu_t* menu) {
 
             if (start == end || sel < 0
                 || (size_t)sel > menu->total_items) { //is an int and in the right range
-                puts("invalid input\n> ");
+                puts("invalid input\n");
                 goto invalid;
             }
 
