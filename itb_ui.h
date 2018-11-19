@@ -221,9 +221,13 @@ itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag) {
 
 void itb_menu_print(const itb_menu_t* menu) {
     printf("<%s>\n", menu->header);
-    size_t i;
-    for (i = 0; i < menu->total_items; ++i) {
-        printf("[%lu] %s\n", i, menu->items[i]->label);
+    size_t i = 0, j = 0;
+    for (; i < menu->total_items; ++i) {
+        if (menu->items[i]->type == LABEL) {
+            printf("%s\n", menu->items[i]->label);
+        } else {
+            printf("[%lu] %s\n", ++j, menu->items[i]->label);
+        }
     }
     printf("[%lu] exit\n", i);
 }
@@ -234,17 +238,27 @@ void itb_menu_run(const itb_menu_t* menu) {
     ssize_t nread, sel = 0;
     while (1) {
         itb_menu_print(menu);
-        puts("> ");
+        printf("> ");
+        fflush(stdout);
     invalid:
         if ((nread = itb_readline(buffer, 64)) > 0) {
             sel = strtoll(start, &end, 10);
+            sel -= 1; //ui uses 1 based for number row but internally we want it zero based
 
-            if (start == end || sel < 0 || sel > menu->total_items) { //is an int and in the right range
+            //skip labels
+            for (ssize_t i = sel; i < (ssize_t)menu->total_items && i >= 0; --i) {
+                if (menu->items[i]->type == LABEL) {
+                    ++sel;
+                }
+            }
+
+            if (start == end || sel < 0
+                || (size_t)sel > menu->total_items) { //is an int and in the right range
                 puts("invalid input\n> ");
                 goto invalid;
             }
 
-            if (sel == menu->total_items) {
+            if ((size_t)sel >= menu->total_items) {
                 return;
             }
 
@@ -258,11 +272,10 @@ void itb_menu_run(const itb_menu_t* menu) {
                 case TOGGLE:
                     (*menu->items[sel]->extra.toggle) = !(*menu->items[sel]->extra.toggle);
                     break;
-                case LABEL:
                 default:
                     break;
             }
-        } else {//^D probably, exit out
+        } else { //^D probably, exit out
             return;
         }
     }
