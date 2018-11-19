@@ -221,9 +221,11 @@ itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag) {
 
 void itb_menu_print(const itb_menu_t* menu) {
     printf("<%s>\n", menu->header);
-    for (size_t i = 0; i < menu->total_items; ++i) {
+    size_t i;
+    for (i = 0; i < menu->total_items; ++i) {
         printf("[%lu] %s\n", i, menu->items[i]->label);
     }
+    printf("[%lu] exit\n", i);
 }
 
 void itb_menu_run(const itb_menu_t* menu) {
@@ -237,12 +239,29 @@ void itb_menu_run(const itb_menu_t* menu) {
         if ((nread = itb_readline(buffer, 64)) > 0) {
             sel = strtoll(start, &end, 10);
 
-            if (start == end) { //thats not an int
+            if (start == end || sel < 0 || sel > menu->total_items) { //is an int and in the right range
                 puts("invalid input\n> ");
                 goto invalid;
             }
 
-            printf("selected %lu\n", sel);
+            if (sel == menu->total_items) {
+                return;
+            }
+
+            switch (menu->items[sel]->type) {
+                case CALLBACK:
+                    menu->items[sel]->extra.callback();
+                    break;
+                case MENU:
+                    itb_menu_run(menu->items[sel]->extra.menu);
+                    break;
+                case TOGGLE:
+                    (*menu->items[sel]->extra.toggle) = !(*menu->items[sel]->extra.toggle);
+                    break;
+                case LABEL:
+                default:
+                    break;
+            }
         }
     }
 }
