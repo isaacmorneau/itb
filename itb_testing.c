@@ -3,9 +3,14 @@
 #include "itb.h"
 #define ITB_IMPLEMENTATION
 #include "itb.h"
+
 #include "itb_ui.h"
 #define ITB_UI_IMPLEMENTATION
 #include "itb_ui.h"
+
+#include "itb_net.h"
+#define ITB_IMPLEMENTATION
+#include "itb_net.h"
 
 void test_callback(void) {
     puts("test message");
