@@ -262,6 +262,8 @@ void itb_menu_run(const itb_menu_t* menu) {
                 default:
                     break;
             }
+        } else {//^D probably, exit out
+            return;
         }
     }
 }
