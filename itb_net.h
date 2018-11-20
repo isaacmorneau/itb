@@ -58,7 +58,7 @@ extern "C" {
         }                                 \
     } while (0)
 #endif
-#endif//ITB_ASSERTS
+#endif //ITB_ASSERTS
 
 //==>ip wrappers<==
 //functions shared between UDP and TCP
@@ -112,8 +112,36 @@ ITBDEF int itb_add_epoll_fd(int efd, int ifd);
 ITBDEF int itb_add_epoll_ptr_flags(int efd, int ifd, void *ptr, int flags);
 ITBDEF int itb_add_epoll_fd_flags(int efd, int ifd, int flags);
 
+//so you dont need to link mbedtls but hey if you do, have some wrappers
+#ifdef ITB_SSL_ADDITIONS
 
-#endif//ITB_NET_H
+#include "mbedtls/config.h"
+//TODO double check the config is sane
+
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/debug.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/net_sockets.h"
+#include "mbedtls/ssl.h"
+typedef struct {
+    mbedtls_net_context server_fd;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_ssl_context ssl;
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt cacert;
+} itb_ssl_conn_t;
+
+//tls1.1+ is enforced
+ITBDEF int itb_ssl_init(itb_ssl_conn_t *conn, const char *host);
+ITBDEF void itb_ssl_cleanup(itb_ssl_conn_t *conn);
+//to allow easy changing later, assume conn is an itb_ssl_conn_t*
+#define itb_ssl_write(conn, buf, len) mbedtls_ssl_write(&(conn)->ssl, buf, len)
+#define itb_ssl_read(conn, buf, len) mbedtls_ssl_read(&(conn)->ssl, buf, len)
+
+#endif // ITB_SSL_ADDITIONS
+
+#endif //ITB_NET_H
 #ifdef ITB_NET_IMPLEMENTATION
 #include <arpa/inet.h>
 #include <stdlib.h>
@@ -121,7 +149,6 @@ ITBDEF int itb_add_epoll_fd_flags(int efd, int ifd, int flags);
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-
 
 //==>tcp wrappers<==
 void itb_set_listening(int sfd) {
@@ -428,6 +455,71 @@ int itb_add_epoll_fd_flags(int efd, int ifd, int flags) {
     return ret;
 }
 
+#ifdef ITB_SSL_ADDITIONS
+
+int itb_ssl_init(itb_ssl_conn_t *conn, const char *host) {
+    mbedtls_net_init(&conn->server_fd);
+    mbedtls_ssl_init(&conn->ssl);
+    mbedtls_ssl_config_init(&conn->conf);
+    mbedtls_x509_crt_init(&conn->cacert);
+    mbedtls_ctr_drbg_init(&conn->ctr_drbg);
+
+    mbedtls_entropy_init(&conn->entropy);
+    if (mbedtls_ctr_drbg_seed(&conn->ctr_drbg, mbedtls_entropy_func, &conn->entropy, NULL, 0)
+        != 0) {
+        return 1;
+    }
+
+    if (mbedtls_x509_crt_parse_path(&conn->cacert, "/etc/ssl/certs/") < 0) {
+        return 1;
+    }
+
+    if (mbedtls_net_connect(&conn->server_fd, host, "443", MBEDTLS_NET_PROTO_TCP)) {
+        return 1;
+    }
+
+    if (mbedtls_ssl_config_defaults(&conn->conf, MBEDTLS_SSL_IS_CLIENT,
+            MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) {
+        return 1;
+    }
+
+    mbedtls_ssl_conf_authmode(&conn->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+    mbedtls_ssl_conf_ca_chain(&conn->conf, &conn->cacert, NULL);
+    mbedtls_ssl_conf_rng(&conn->conf, mbedtls_ctr_drbg_random, &conn->ctr_drbg);
+    //mbedtls_ssl_conf_dbg(&conn->conf, debug_print, stdout);
+
+    if (mbedtls_ssl_setup(&conn->ssl, &conn->conf)) {
+        return 1;
+    }
+
+    if (mbedtls_ssl_set_hostname(&conn->ssl, host)) {
+        return 1;
+    }
+
+    mbedtls_ssl_set_bio(&conn->ssl, &conn->server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+
+    if (mbedtls_ssl_handshake(&conn->ssl)) {
+        return 1;
+    }
+
+    if (mbedtls_ssl_get_verify_result(&conn->ssl)) {
+        return 1;
+    }
+
+    return 0;
+}
+
+void itb_ssl_cleanup(itb_ssl_conn_t *conn) {
+    mbedtls_ssl_close_notify(&conn->ssl);
+    mbedtls_net_free(&conn->server_fd);
+    mbedtls_x509_crt_free(&conn->cacert);
+    mbedtls_ssl_free(&conn->ssl);
+    mbedtls_ssl_config_free(&conn->conf);
+    mbedtls_ctr_drbg_free(&conn->ctr_drbg);
+    mbedtls_entropy_free(&conn->entropy);
+}
+
+#endif // ITB_SSL_ADDITIONS
 
 #endif //ITB_NET_IMPLEMENTATION
 
