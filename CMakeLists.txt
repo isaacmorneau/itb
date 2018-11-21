@@ -21,8 +21,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}")
 add_definitions(-D_POSIX_C_SOURCE=200809L)
 add_definitions(-D_DEFAULT_SOURCE)
 
-include_directories(src deps/wrappers)
-
 SET(SOURCES
     "itb_testing.c"
     )
