@@ -285,10 +285,10 @@ ssize_t itb_readline(uint8_t* buffer, size_t len) {
     ssize_t nread;
 
     if ((nread = read(STDIN_FILENO, buffer, len)) == -1) {
-        perror("read stdin");
         if (errno == EAGAIN) { //stdin is in nonblocking mode
             return 0;
         } else {
+            perror("readline stdin");
             return -errno;
         }
     }
