@@ -73,6 +73,8 @@ ITBDEF int itb_make_tcp();
 ITBDEF int itb_make_connected(const char *address, const char *port);
 ITBDEF int itb_accept_blind(int sfd);
 ITBDEF int itb_accept_addr(int sfd, struct sockaddr_storage *addr);
+ITBDEF int itb_recv(int sockfd, char *buffer, int len);
+ITBDEF int itb_send(int sockfd, char *buffer, int len);
 
 //==>unix wrappers<==
 ITBDEF int itb_make_bound_unix(const char *path);
@@ -241,6 +243,23 @@ int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
     itb_ensure_nonblock((ret = accept(sfd, (struct sockaddr *)addr, &len)) != -1);
     return ret;
 }
+
+int itb_recv(int sockfd, char *buffer, int len) {
+    int total = 0, ret;
+readmsg:
+    itb_ensure_nonblock((ret = recv(sockfd, buffer + total, len - total, 0)) != -1);
+    if (ret == -1)
+        return total;
+    total += ret;
+    goto readmsg;
+}
+
+int itb_send(int sockfd, char *buffer, int len) {
+    int ret;
+    itb_ensure_nonblock((ret = send(sockfd, buffer, len, 0)) != -1);
+    return ret;
+}
+
 //==>unix wrappers<==
 int itb_make_bound_unix(const char *path) {
     int sfd;
