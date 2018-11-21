@@ -248,7 +248,7 @@ int itb_recv(int sockfd, char *buffer, int len) {
     int total = 0, ret;
 readmsg:
     itb_ensure_nonblock((ret = recv(sockfd, buffer + total, len - total, 0)) != -1);
-    if (ret == -1)
+    if (ret <= 0)
         return total;
     total += ret;
     goto readmsg;
