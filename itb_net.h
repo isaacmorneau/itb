@@ -13,6 +13,7 @@ extern "C" {
 #define ITBDEF extern
 #endif
 
+#include <errno.h>
 #include <netdb.h>
 #include <sys/epoll.h>
 
