@@ -127,7 +127,7 @@ ITBDEF int itb_add_epoll_fd_flags(int efd, int ifd, int flags);
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/ssl.h"
 typedef struct {
-    mbedtls_net_context sock_fd;
+    mbedtls_net_context socket;
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
     mbedtls_ssl_context ssl;
@@ -478,7 +478,7 @@ int itb_add_epoll_fd_flags(int efd, int ifd, int flags) {
 #ifdef ITB_SSL_ADDITIONS
 
 int itb_ssl_init(itb_ssl_conn_t *conn, const char *host) {
-    mbedtls_net_init(&conn->sock_fd);
+    mbedtls_net_init(&conn->socket);
     mbedtls_ssl_init(&conn->ssl);
     mbedtls_ssl_config_init(&conn->conf);
     mbedtls_x509_crt_init(&conn->cacert);
@@ -494,7 +494,7 @@ int itb_ssl_init(itb_ssl_conn_t *conn, const char *host) {
         return 1;
     }
 
-    if (mbedtls_net_connect(&conn->sock_fd, host, "443", MBEDTLS_NET_PROTO_TCP)) {
+    if (mbedtls_net_connect(&conn->socket, host, "443", MBEDTLS_NET_PROTO_TCP)) {
         return 1;
     }
 
@@ -516,7 +516,7 @@ int itb_ssl_init(itb_ssl_conn_t *conn, const char *host) {
         return 1;
     }
 
-    mbedtls_ssl_set_bio(&conn->ssl, &conn->sock_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+    mbedtls_ssl_set_bio(&conn->ssl, &conn->socket, mbedtls_net_send, mbedtls_net_recv, NULL);
 
     if (mbedtls_ssl_handshake(&conn->ssl)) {
         return 1;
@@ -531,7 +531,7 @@ int itb_ssl_init(itb_ssl_conn_t *conn, const char *host) {
 
 void itb_ssl_cleanup(itb_ssl_conn_t *conn) {
     mbedtls_ssl_close_notify(&conn->ssl);
-    mbedtls_net_free(&conn->sock_fd);
+    mbedtls_net_free(&conn->socket);
     mbedtls_x509_crt_free(&conn->cacert);
     mbedtls_ssl_free(&conn->ssl);
     mbedtls_ssl_config_free(&conn->conf);
