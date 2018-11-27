@@ -61,6 +61,10 @@ extern "C" {
 #endif
 #endif //ITB_ASSERTS
 
+//==>extra wrappers<==
+ITBDEF int is_little_endian();
+ITBDEF int is_big_endian();
+
 //==>ip wrappers<==
 //functions shared between UDP and TCP
 ITBDEF void itb_make_storage(struct sockaddr_storage *addr, const char *host, int port);
@@ -152,6 +156,17 @@ ITBDEF void itb_ssl_cleanup(itb_ssl_conn_t *conn);
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+//==>extra wrappers<==
+int is_little_endian() {
+    int le = 1;
+    return *(char*)&le == 1;//they are the same, its little endian
+}
+
+int is_big_endian() {
+    int be = 1;
+    return *(char*)&le != 1;//they are different, its big endian
+}
 
 //==>tcp wrappers<==
 void itb_set_listening(int sfd) {
