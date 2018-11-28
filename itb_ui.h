@@ -318,6 +318,7 @@ int itb_menu_run_once(itb_menu_t* menu, const char* line) {
     char* end;
     ssize_t sel = 0;
 
+    int ret = 0;
     if (strlen(line) > 0) {
         sel = strtoll(line, &end, 10);
         sel -= 1; //ui uses 1 based for number row but internally we want it zero based
@@ -353,6 +354,8 @@ int itb_menu_run_once(itb_menu_t* menu, const char* line) {
                     break;
             }
             return 0;
+        } else {
+            ret = 1;
         }
         //else exit/back requested
     }
@@ -365,10 +368,10 @@ int itb_menu_run_once(itb_menu_t* menu, const char* line) {
         } else {
             //top of stack reached
             menu_local->stacked = NULL;
-            return 1;
+            ret = 1;
         }
     }
-    return 0;
+    return ret;
 }
 
 ssize_t itb_readline(uint8_t* buffer, size_t len) {
