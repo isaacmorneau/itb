@@ -165,7 +165,7 @@ int is_little_endian() {
 
 int is_big_endian() {
     int be = 1;
-    return *(char*)&le != 1;//they are different, its big endian
+    return *(char*)&be != 1;//they are different, its big endian
 }
 
 //==>tcp wrappers<==
