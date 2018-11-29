@@ -430,6 +430,7 @@ int itb_vector_remove_at(itb_vector_t *vec, size_t pos) {
     }
     memmove((uint8_t *)vec->data + (pos * vec->_bytes_per),
         (uint8_t *)vec->data + ((pos + 1) * vec->_bytes_per), vec->_bytes_per * (vec->size - pos));
+    --(vec->size);
     return 0;
 }
 

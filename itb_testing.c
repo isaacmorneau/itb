@@ -41,6 +41,53 @@ void test_tls(void * unused) {
     itb_ssl_cleanup(&conn);
 }
 
+void test_vector(void * unused) {
+    (void)unused;
+    itb_vector_t vec;
+    int tmp = 200;
+
+    itb_vector_init(&vec, sizeof(int));
+
+    for (int i = 0; i < 10; ++i) {
+        itb_vector_push(&vec, &i);
+    }
+    puts("built");
+
+    for (int i = 0; i < 10; ++i) {
+        int *j;
+        j = itb_vector_at(&vec, i);
+        printf("vec %d @ %d\n", *j, i);
+    }
+
+    itb_vector_remove_at(&vec, 5);
+
+    puts("remove at");
+    for (int i = 0; i < 9; ++i) {
+        int *j;
+        j = itb_vector_at(&vec, i);
+        printf("vec %d @ %d\n", *j, i);
+    }
+
+    itb_vector_push(&vec, &tmp);
+    puts("pushed again");
+    for (int i = 0; i < 10; ++i) {
+        int *j;
+        j = itb_vector_at(&vec, i);
+        printf("vec %d @ %d\n", *j, i);
+    }
+
+    itb_vector_pop(&vec);
+
+    puts("popped");
+    for (int i = 0; i < 9; ++i) {
+        int *j;
+        j = itb_vector_at(&vec, i);
+        printf("vec %d @ %d\n", *j, i);
+    }
+
+    itb_vector_close(&vec);
+}
+
 int main(void) {
     itb_menu_t mainmenu, submenu, subsubmenu;
     bool toggle = 0;
@@ -54,6 +101,7 @@ int main(void) {
     itb_menu_register_items(&mainmenu, itb_menu_item_label("testing label"),
         itb_menu_item_callback("testing callback", test_callback, NULL),
         itb_menu_item_callback("testing tls", test_tls, NULL),
+        itb_menu_item_callback("testing itb_vector", test_vector, NULL),
         itb_menu_item_menu("testing sub menu", &submenu),
         itb_menu_item_toggle("testing toggle", &toggle), NULL);
 
