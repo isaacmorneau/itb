@@ -90,7 +90,8 @@ ITBDEF int itb_make_connected_unix(const char *path);
 ITBDEF int itb_make_bound_udp(int port);
 ITBDEF int itb_make_udp();
 ITBDEF int itb_read_message(int sockfd, uint8_t *buffer, int len);
-ITBDEF int itb_read_message_addr(int sockfd, uint8_t *buffer, int len, struct sockaddr_storage *addr);
+ITBDEF int itb_read_message_addr(
+    int sockfd, uint8_t *buffer, int len, struct sockaddr_storage *addr);
 ITBDEF int itb_read_message_port(int sockfd, uint8_t *buffer, int len, int *port);
 ITBDEF int itb_send_message(
     int sockfd, const uint8_t *buffer, int len, const struct sockaddr_storage *addr);
@@ -160,12 +161,12 @@ ITBDEF void itb_ssl_cleanup(itb_ssl_conn_t *conn);
 //==>extra wrappers<==
 int is_little_endian() {
     int le = 1;
-    return *(char*)&le == 1;//they are the same, its little endian
+    return *(char *)&le == 1; //they are the same, its little endian
 }
 
 int is_big_endian() {
     int be = 1;
-    return *(char*)&be != 1;//they are different, its big endian
+    return *(char *)&be != 1; //they are different, its big endian
 }
 
 //==>tcp wrappers<==

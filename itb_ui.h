@@ -35,75 +35,75 @@ typedef enum itb_menu_item_type_t {
 } itb_menu_item_type_t;
 
 struct itb_callback_item {
-    void (*func)(void*);
-    void* data;
+    void (*func)(void *);
+    void *data;
 };
 
 struct itb_menu_t;
 typedef struct itb_menu_item_t {
     bool free_on_close;
     //name of the item
-    char* label;
+    char *label;
     //which kind and what it filters on
     //label ignores extra
     itb_menu_item_type_t type;
     union {
-        struct itb_callback_item* callback;
-        struct itb_menu_t* menu;
-        bool* toggle;
+        struct itb_callback_item *callback;
+        struct itb_menu_t *menu;
+        bool *toggle;
     } extra;
 } itb_menu_item_t;
 
 typedef struct itb_menu_t {
     bool free_on_close;
     //name of the menu
-    char* header;
+    char *header;
     //how many and which items
     size_t total_items;
-    itb_menu_item_t** items;
+    itb_menu_item_t **items;
     //either previous or jump to pointer
-    struct itb_menu_t* stacked;
+    struct itb_menu_t *stacked;
 } itb_menu_t;
 
 //sets free_on_close to false
-ITBDEF int itb_menu_init(itb_menu_t* menu, const char* header);
-ITBDEF void itb_menu_close(itb_menu_t* menu);
+ITBDEF int itb_menu_init(itb_menu_t *menu, const char *header);
+ITBDEF void itb_menu_close(itb_menu_t *menu);
 
 //sets free_on_close to false
-ITBDEF int itb_menu_item_init(itb_menu_item_t* item, const char* text);
-ITBDEF void itb_menu_item_close(itb_menu_item_t* item);
+ITBDEF int itb_menu_item_init(itb_menu_item_t *item, const char *text);
+ITBDEF void itb_menu_item_close(itb_menu_item_t *item);
 
-ITBDEF int itb_menu_register_item(itb_menu_t* menu, itb_menu_item_t* item);
+ITBDEF int itb_menu_register_item(itb_menu_t *menu, itb_menu_item_t *item);
 //usage expects items terminated by a NULL
 //itb_menu_register_items(menu, item1, item2, ..., NULL);
-ITBDEF int itb_menu_register_items(itb_menu_t* menu, ...);
+ITBDEF int itb_menu_register_items(itb_menu_t *menu, ...);
 
 //sets free_on_close to true
-ITBDEF itb_menu_item_t* itb_menu_item_label(const char* text);
-ITBDEF itb_menu_item_t* itb_menu_item_callback(
-    const char* text, void (*callback)(void*), void* data);
-ITBDEF itb_menu_item_t* itb_menu_item_callback_ex(const char* text, void (*callback)(void*));
-ITBDEF itb_menu_item_t* itb_menu_item_menu(const char* text, itb_menu_t* menu);
-ITBDEF itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag);
+ITBDEF itb_menu_item_t *itb_menu_item_label(const char *text);
+ITBDEF itb_menu_item_t *itb_menu_item_callback(
+    const char *text, void (*callback)(void *), void *data);
+ITBDEF itb_menu_item_t *itb_menu_item_callback_ex(const char *text, void (*callback)(void *));
+ITBDEF itb_menu_item_t *itb_menu_item_menu(const char *text, itb_menu_t *menu);
+ITBDEF itb_menu_item_t *itb_menu_item_toggle(const char *text, bool *flag);
 
 //display current menu position
-ITBDEF void itb_menu_print(const itb_menu_t* menu);
+ITBDEF void itb_menu_print(const itb_menu_t *menu);
 //handle print and input loop, only good for single threaded
-ITBDEF void itb_menu_run(const itb_menu_t* menu);
+ITBDEF void itb_menu_run(const itb_menu_t *menu);
 //assumes print was run manually
 //-1 invalid, 0 fine, 1 exit
-ITBDEF int itb_menu_run_once(itb_menu_t* menu, const char* line);
+ITBDEF int itb_menu_run_once(itb_menu_t *menu, const char *line);
 
 //- errno on error or len of total read
 // will clear trailing input on read, terminates with '\0' not '\n'
-ITBDEF ssize_t itb_readline(uint8_t* buffer, size_t len);
+ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
-int itb_menu_init(itb_menu_t* menu, const char* header) {
+int itb_menu_init(itb_menu_t *menu, const char *header) {
     //to make sure that its as dynamic as possible just copy in the string
     //and let the caller deal with how it happens
     menu->header = malloc(strlen(header) + 1);
@@ -118,7 +118,7 @@ int itb_menu_init(itb_menu_t* menu, const char* header) {
     return 1;
 }
 
-void itb_menu_close(itb_menu_t* menu) {
+void itb_menu_close(itb_menu_t *menu) {
     //only free if there are items
     if (menu->total_items) {
         while (menu->total_items) {
@@ -135,7 +135,7 @@ void itb_menu_close(itb_menu_t* menu) {
     }
 }
 
-void itb_menu_item_close(itb_menu_item_t* item) {
+void itb_menu_item_close(itb_menu_item_t *item) {
     if (item->type == MENU) { //might need recursion, it will free itself as needed
         itb_menu_close(item->extra.menu);
     }
@@ -145,17 +145,17 @@ void itb_menu_item_close(itb_menu_item_t* item) {
     }
 }
 
-int itb_menu_register_item(itb_menu_t* menu, itb_menu_item_t* item) {
+int itb_menu_register_item(itb_menu_t *menu, itb_menu_item_t *item) {
     ++menu->total_items;
     if (menu->items) {
-        itb_menu_item_t** temp = menu->items;
-        menu->items = realloc(menu->items, menu->total_items * sizeof(itb_menu_item_type_t*));
+        itb_menu_item_t **temp = menu->items;
+        menu->items = realloc(menu->items, menu->total_items * sizeof(itb_menu_item_type_t *));
         if (!menu->items) { //realloc failed
             menu->items = temp;
             return -1;
         }
     } else {
-        menu->items = malloc(sizeof(itb_menu_item_type_t*));
+        menu->items = malloc(sizeof(itb_menu_item_type_t *));
         if (!menu->items) { //malloc failed
             return -1;
         }
@@ -166,11 +166,11 @@ int itb_menu_register_item(itb_menu_t* menu, itb_menu_item_t* item) {
 
 //usage expects items terminated by a NULL
 //itb_menu_register_items(menu, item1, item2, ..., NULL);
-int itb_menu_register_items(itb_menu_t* menu, ...) {
+int itb_menu_register_items(itb_menu_t *menu, ...) {
     va_list args;
     va_start(args, menu);
-    itb_menu_item_t* temp = NULL;
-    while ((temp = va_arg(args, itb_menu_item_t*))) {
+    itb_menu_item_t *temp = NULL;
+    while ((temp = va_arg(args, itb_menu_item_t *))) {
         if (itb_menu_register_item(menu, temp)) {
             return 1;
         }
@@ -179,12 +179,12 @@ int itb_menu_register_items(itb_menu_t* menu, ...) {
     return 0;
 }
 
-itb_menu_item_t* itb_menu_item_label(const char* text) {
+itb_menu_item_t *itb_menu_item_label(const char *text) {
     size_t len            = strlen(text) + 1;
-    itb_menu_item_t* temp = malloc(sizeof(itb_menu_item_t) + len);
+    itb_menu_item_t *temp = malloc(sizeof(itb_menu_item_t) + len);
     if (temp) {
         temp->free_on_close = true;
-        temp->label         = (char*)(temp + 1);
+        temp->label         = (char *)(temp + 1);
         temp->type          = LABEL;
         strcpy(temp->label, text);
         return temp;
@@ -192,16 +192,16 @@ itb_menu_item_t* itb_menu_item_label(const char* text) {
     return NULL;
 }
 
-itb_menu_item_t* itb_menu_item_callback(const char* text, void (*callback)(void*), void* data) {
+itb_menu_item_t *itb_menu_item_callback(const char *text, void (*callback)(void *), void *data) {
     size_t len = strlen(text) + 1;
-    itb_menu_item_t* temp
+    itb_menu_item_t *temp
         = malloc(sizeof(itb_menu_item_t) + sizeof(struct itb_callback_item) + len);
     if (temp) {
         temp->free_on_close        = true;
-        temp->extra.callback       = (struct itb_callback_item*)(temp + 1);
+        temp->extra.callback       = (struct itb_callback_item *)(temp + 1);
         temp->extra.callback->func = callback;
         temp->extra.callback->data = data;
-        temp->label                = (char*)(temp->extra.callback + 1);
+        temp->label                = (char *)(temp->extra.callback + 1);
         temp->type                 = CALLBACK;
         strcpy(temp->label, text);
         return temp;
@@ -209,12 +209,12 @@ itb_menu_item_t* itb_menu_item_callback(const char* text, void (*callback)(void*
     return NULL;
 }
 
-itb_menu_item_t* itb_menu_item_menu(const char* text, itb_menu_t* menu) {
+itb_menu_item_t *itb_menu_item_menu(const char *text, itb_menu_t *menu) {
     size_t len            = strlen(text) + 1;
-    itb_menu_item_t* temp = malloc(sizeof(itb_menu_item_t) + len);
+    itb_menu_item_t *temp = malloc(sizeof(itb_menu_item_t) + len);
     if (temp) {
         temp->free_on_close = true;
-        temp->label         = (char*)(temp + 1);
+        temp->label         = (char *)(temp + 1);
         temp->extra.menu    = menu;
         temp->type          = MENU;
         strcpy(temp->label, text);
@@ -223,12 +223,12 @@ itb_menu_item_t* itb_menu_item_menu(const char* text, itb_menu_t* menu) {
     return NULL;
 }
 
-itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag) {
+itb_menu_item_t *itb_menu_item_toggle(const char *text, bool *flag) {
     size_t len            = strlen(text) + 1;
-    itb_menu_item_t* temp = malloc(sizeof(itb_menu_item_t) + len);
+    itb_menu_item_t *temp = malloc(sizeof(itb_menu_item_t) + len);
     if (temp) {
         temp->free_on_close = true;
-        temp->label         = (char*)(temp + 1);
+        temp->label         = (char *)(temp + 1);
         temp->extra.toggle  = flag;
         temp->type          = TOGGLE;
         strcpy(temp->label, text);
@@ -237,10 +237,10 @@ itb_menu_item_t* itb_menu_item_toggle(const char* text, bool* flag) {
     return NULL;
 }
 
-void itb_menu_print(const itb_menu_t* menu) {
+void itb_menu_print(const itb_menu_t *menu) {
     bool s = false;
     if (menu->stacked) {
-        s = true;
+        s    = true;
         menu = menu->stacked;
     }
     printf("<%s>\n", menu->header);
@@ -260,9 +260,9 @@ void itb_menu_print(const itb_menu_t* menu) {
     }
 }
 
-void itb_menu_run(const itb_menu_t* menu) {
+void itb_menu_run(const itb_menu_t *menu) {
     uint8_t buffer[64];
-    char *start = (char*)buffer, *end;
+    char *start = (char *)buffer, *end;
     ssize_t nread, sel = 0;
     while (1) {
         itb_menu_print(menu);
@@ -309,13 +309,13 @@ void itb_menu_run(const itb_menu_t* menu) {
     }
 }
 
-int itb_menu_run_once(itb_menu_t* menu, const char* line) {
-    itb_menu_t* menu_local = menu;
+int itb_menu_run_once(itb_menu_t *menu, const char *line) {
+    itb_menu_t *menu_local = menu;
 
     if (menu->stacked) { //return to last position if set
         menu = menu->stacked;
     }
-    char* end;
+    char *end;
     ssize_t sel = 0;
 
     int ret = 0;
@@ -368,13 +368,13 @@ int itb_menu_run_once(itb_menu_t* menu, const char* line) {
         } else {
             //top of stack reached
             menu_local->stacked = NULL;
-            ret = 1;
+            ret                 = 1;
         }
     }
     return ret;
 }
 
-ssize_t itb_readline(uint8_t* buffer, size_t len) {
+ssize_t itb_readline(uint8_t *buffer, size_t len) {
     ssize_t nread;
 
     if ((nread = read(STDIN_FILENO, buffer, len)) == -1) {

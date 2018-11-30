@@ -38,8 +38,8 @@ extern "C" {
 #define ITB_VECTOR_INITIAL_SIZE 2
 #endif
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 //==>assert macros<==
 #ifndef ITB_ASSERTS
@@ -83,7 +83,7 @@ extern "C" {
         }                                 \
     } while (0)
 #endif
-#endif//ITB_ASSERTS
+#endif //ITB_ASSERTS
 
 #define ITB_STRINGIFY(param) #param
 
@@ -173,7 +173,7 @@ ITBDEF int itb_vector_push(itb_vector_t *vec, void *item);
 ITBDEF void *itb_vector_pop(itb_vector_t *vec);
 ITBDEF int itb_vector_remove_at(itb_vector_t *vec, size_t pos);
 
-#endif//ITB_H
+#endif //ITB_H
 
 #ifdef ITB_IMPLEMENTATION
 #include <errno.h>
