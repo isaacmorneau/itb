@@ -338,15 +338,13 @@ void itb_make_storage(struct sockaddr_storage *restrict addr, const char *restri
 
 void itb_print_addr(char **buff, struct sockaddr_storage *addr) {
     if (((struct sockaddr *)addr)->sa_family == AF_INET) {
-        if (*buff == NULL) {
-            *buff = malloc(INET_ADDRSTRLEN);
+        if (*buff || (*buff = malloc(INET_ADDRSTRLEN)) {
+            inet_ntop(AF_INET, addr, *buff, INET_ADDRSTRLEN);
         }
-        inet_ntop(AF_INET, addr, *buff, sizeof(struct sockaddr_in));
     } else {
-        if (*buff == NULL) {
-            *buff = malloc(INET6_ADDRSTRLEN);
+        if (*buff || (*buff = malloc(INET6_ADDRSTRLEN)) {
+            inet_ntop(AF_INET6, addr, *buff, INET6_ADDRSTRLEN);
         }
-        inet_ntop(AF_INET6, addr, *buff, sizeof(struct sockaddr_in6));
     }
 }
 
