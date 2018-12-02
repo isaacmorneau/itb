@@ -79,7 +79,7 @@ ITBDEF int itb_make_connected(const char *address, const char *port);
 ITBDEF int itb_accept_blind(int sfd);
 ITBDEF int itb_accept_addr(int sfd, struct sockaddr_storage *addr);
 ITBDEF int itb_recv(int sockfd, uint8_t *buffer, int len);
-ITBDEF int itb_send(int sockfd, uint8_t *buffer, int len);
+ITBDEF int itb_send(int sockfd, const uint8_t *buffer, int len);
 
 //==>unix wrappers<==
 ITBDEF int itb_make_bound_unix(const char *path);
@@ -271,7 +271,7 @@ readmsg:
     goto readmsg;
 }
 
-int itb_send(int sockfd, uint8_t *restrict buffer, int len) {
+int itb_send(int sockfd, const uint8_t *restrict buffer, int len) {
     int ret;
     itb_ensure_nonblock((ret = send(sockfd, buffer, len, 0)) != -1);
     return ret;
