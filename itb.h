@@ -63,12 +63,21 @@ extern "C" {
             exit(errno);                                                         \
         }                                                                        \
     } while (0)
+
+#define itb_release_only(expr)
+
 #define itb_debug_only(expr) \
     do {                     \
         expr;                \
     } while (0)
 #else
+#define itb_release_only(expr) \
+    do {                       \
+        expr;                  \
+    } while (0)
+
 #define itb_debug_only(expr)
+
 #define itb_ensure(expr) \
     do {                 \
         if (!(expr)) {   \
