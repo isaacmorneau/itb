@@ -68,7 +68,7 @@ ITBDEF int is_big_endian();
 //==>ip wrappers<==
 //functions shared between UDP and TCP
 ITBDEF void itb_make_storage(struct sockaddr_storage *addr, const char *host, int port);
-ITBDEF void itb_print_addr(char **buff, struct sockaddr_storage *addr);
+ITBDEF int itb_print_addr(char **buff, struct sockaddr_storage *addr);
 
 //==>tcp wrappers<==
 //functions for setting up TCP
@@ -336,15 +336,11 @@ void itb_make_storage(struct sockaddr_storage *restrict addr, const char *restri
     freeaddrinfo(rp);
 }
 
-void itb_print_addr(char **buff, struct sockaddr_storage *addr) {
-    if (((struct sockaddr *)addr)->sa_family == AF_INET) {
-        if (*buff || (*buff = malloc(INET_ADDRSTRLEN))) {
-            inet_ntop(AF_INET, addr, *buff, INET_ADDRSTRLEN);
-        }
-    } else {
-        if (*buff || (*buff = malloc(INET6_ADDRSTRLEN))) {
-            inet_ntop(AF_INET6, addr, *buff, INET6_ADDRSTRLEN);
-        }
+int itb_print_addr(char **buff, struct sockaddr_storage *addr) {
+    //if NULL allocate it
+    if (*buff || (*buff = malloc(NI_MAXHOST))) {
+        return getnameinfo(
+            addr, sizeof(struct sockaddr_storage), *buff, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
     }
 }
 
