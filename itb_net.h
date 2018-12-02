@@ -339,8 +339,8 @@ void itb_make_storage(struct sockaddr_storage *restrict addr, const char *restri
 int itb_print_addr(char **buff, struct sockaddr_storage *addr) {
     //if NULL allocate it
     if (*buff || (*buff = malloc(NI_MAXHOST))) {
-        return getnameinfo(
-            addr, sizeof(struct sockaddr_storage), *buff, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        return getnameinfo((const struct sockaddr *)addr, sizeof(struct sockaddr_storage), *buff,
+            NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
     }
 
     return 1;
