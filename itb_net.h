@@ -342,6 +342,8 @@ int itb_print_addr(char **buff, struct sockaddr_storage *addr) {
         return getnameinfo(
             addr, sizeof(struct sockaddr_storage), *buff, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
     }
+
+    return 1;
 }
 
 //==>udp wrappers<==
