@@ -182,6 +182,21 @@ ITBDEF int itb_vector_push(itb_vector_t *vec, void *item);
 ITBDEF void *itb_vector_pop(itb_vector_t *vec);
 ITBDEF int itb_vector_remove_at(itb_vector_t *vec, size_t pos);
 
+//==>uri helpers<==
+typedef struct {
+    void *buffer;
+    size_t len;
+    char *prefix;
+    char *host;
+    char *suffix;
+} itb_uri_t;
+
+enum itb_uri_type { HOST, PREFIX_HOST, HOST_SUFFIX, PREFIX_HOST_SUFFIX, ERROR };
+
+ITBDEF enum itb_uri_type itb_uri_parse(itb_uri_t *uri, const char *s);
+ITBDEF void itb_uri_print(itb_uri_t *uri);
+ITBDEF void itb_uri_close(itb_uri_t *uri);
+
 #endif //ITB_H
 
 #ifdef ITB_IMPLEMENTATION
@@ -441,6 +456,127 @@ int itb_vector_remove_at(itb_vector_t *vec, size_t pos) {
         (uint8_t *)vec->data + ((pos + 1) * vec->_bytes_per), vec->_bytes_per * (vec->size - pos));
     --(vec->size);
     return 0;
+}
+
+//==>uri helpers<==
+enum itb_uri_type itb_uri_parse(itb_uri_t *uri, const char *s) {
+    if (!(uri->len = strlen(s))) {
+        return ERROR;
+    }
+
+    char *prefix_eh;
+    char *suffix_eh;
+
+    prefix_eh = strstr(s, "://");
+    suffix_eh = strrchr(s, ':');
+
+    enum itb_uri_type type;
+
+    if (!prefix_eh && !suffix_eh) { //no prefix no suffix
+        type = HOST;
+
+        ++(uri->len); //'\0'
+        if (!(uri->buffer = malloc(uri->len))) {
+            return ERROR;
+        }
+
+        uri->prefix = NULL;
+        uri->host   = uri->buffer;
+        strncpy(uri->host, s, uri->len);
+
+        uri->suffix = NULL;
+    } else if (!prefix_eh && suffix_eh) { //no prefix there is a suffix
+        type = HOST_SUFFIX;
+
+        ++(uri->len); //'\0' ':'->'\0'
+        if (!(uri->buffer = malloc(uri->len))) {
+            return ERROR;
+        }
+
+        size_t suffixlen = strlen(suffix_eh);
+        size_t hostlen   = uri->len - suffixlen - 1; // :
+
+        uri->prefix = NULL;
+
+        uri->host = uri->buffer;
+        strncpy(uri->host, s, hostlen);
+        uri->host[hostlen] = 0;
+
+        uri->suffix = uri->host + hostlen + 1;
+        strncpy(uri->suffix, suffix_eh + 1, suffixlen);
+    } else if (prefix_eh == suffix_eh) { //prefix there is no suffix
+        type = PREFIX_HOST;
+
+        --(uri->len); //'\0' '://'->'\0' 3->2
+        if (!(uri->buffer = malloc(uri->len))) {
+            return ERROR;
+        }
+
+        size_t prefixlen = prefix_eh - s;
+        size_t hostlen   = uri->len - prefixlen - 2; // ://
+
+        uri->prefix = uri->buffer;
+        strncpy(uri->prefix, s, prefixlen);
+        uri->prefix[prefixlen] = 0;
+
+        uri->host = uri->prefix + prefixlen + 1;
+        strncpy(uri->host, prefix_eh + 3, hostlen);
+        uri->host[hostlen] = 0;
+
+        uri->suffix = NULL;
+    } else { //prefix and suffix
+        type = PREFIX_HOST_SUFFIX;
+
+        --(uri->len); //'\0' '://'->'\0' ':'->'\0' 4->3
+        if (!(uri->buffer = malloc(uri->len))) {
+            return ERROR;
+        }
+
+        size_t prefixlen = prefix_eh - s;
+        size_t suffixlen = strlen(suffix_eh);
+        size_t hostlen   = uri->len - prefixlen - suffixlen - 2; // :// :
+
+        uri->prefix = uri->buffer;
+        strncpy(uri->prefix, s, prefixlen);
+        uri->prefix[prefixlen] = 0;
+
+        uri->host = uri->prefix + prefixlen + 1;
+        strncpy(uri->host, prefix_eh + 3, hostlen);
+        uri->host[hostlen] = 0;
+
+        uri->suffix = uri->host + hostlen + 1;
+        strncpy(uri->suffix, suffix_eh + 1, suffixlen);
+    }
+    return type;
+}
+
+void itb_uri_print(itb_uri_t *uri) {
+    if (!uri->buffer)
+        return;
+    if (uri->prefix)
+        printf("prefix: %s\n", uri->prefix);
+    if (uri->host)
+        printf("host: %s\n", uri->host);
+    if (uri->suffix)
+        printf("suffix: %s\n", uri->suffix);
+    printf("total: ");
+    if (uri->prefix)
+        printf("%s://", uri->prefix);
+    if (uri->host)
+        printf("%s", uri->host);
+    if (uri->suffix)
+        printf(":%s", uri->suffix);
+    puts("");
+}
+void itb_uri_close(itb_uri_t *uri) {
+    if (!uri) {
+        return;
+    }
+
+    if (uri->buffer) {
+        free(uri->buffer);
+    }
+    memset(uri, 0, sizeof(itb_uri_t));
 }
 
 #endif //ITB_IMPLEMENTATION

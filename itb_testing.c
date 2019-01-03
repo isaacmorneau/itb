@@ -88,6 +88,39 @@ void test_vector(void * unused) {
     itb_vector_close(&vec);
 }
 
+void test_uri(void * unused) {
+    (void)unused;
+    char * s1 = "example.com";
+    char * s2 = "protocol://example.com";
+    char * s3 = "example.com:port";
+    char * s4 = "protocol://example.com:port";
+
+    itb_uri_t uri_1 = {0};
+    itb_uri_t uri_2 = {0};
+    itb_uri_t uri_3 = {0};
+    itb_uri_t uri_4 = {0};
+
+    printf("testing: %s\n", s1);
+    itb_uri_parse(&uri_1,s1);
+    itb_uri_print(&uri_1);
+    itb_uri_close(&uri_1);
+
+    printf("testing: %s\n", s2);
+    itb_uri_parse(&uri_2,s2);
+    itb_uri_print(&uri_2);
+    itb_uri_close(&uri_2);
+
+    printf("testing: %s\n", s3);
+    itb_uri_parse(&uri_3,s3);
+    itb_uri_print(&uri_3);
+    itb_uri_close(&uri_3);
+
+    printf("testing: %s\n", s4);
+    itb_uri_parse(&uri_4,s4);
+    itb_uri_print(&uri_4);
+    itb_uri_close(&uri_4);
+}
+
 int main(void) {
     itb_menu_t mainmenu, submenu, subsubmenu;
     bool toggle = 0;
@@ -100,6 +133,7 @@ int main(void) {
 
     itb_menu_register_items(&mainmenu, itb_menu_item_label("testing label"),
         itb_menu_item_callback("testing callback", test_callback, NULL),
+        itb_menu_item_callback("testing uri parser", test_uri, NULL),
         itb_menu_item_callback("testing tls", test_tls, NULL),
         itb_menu_item_callback("testing itb_vector", test_vector, NULL),
         itb_menu_item_menu("testing sub menu", &submenu),
