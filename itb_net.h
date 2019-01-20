@@ -78,8 +78,8 @@ ITBDEF int itb_make_tcp();
 ITBDEF int itb_make_connected(const char *address, const char *port);
 ITBDEF int itb_accept_blind(int sfd);
 ITBDEF int itb_accept_addr(int sfd, struct sockaddr_storage *addr);
-ITBDEF int itb_recv(int sockfd, uint8_t *buffer, int len);
-ITBDEF int itb_send(int sockfd, const uint8_t *buffer, int len);
+ITBDEF int itb_recv(int sockfd, uint8_t *buffer, size_t len);
+ITBDEF int itb_send(int sockfd, const uint8_t *buffer, size_t len);
 
 //==>unix wrappers<==
 ITBDEF int itb_make_bound_unix(const char *path);
@@ -89,12 +89,12 @@ ITBDEF int itb_make_connected_unix(const char *path);
 //functions for setting up UDP
 ITBDEF int itb_make_bound_udp(int port);
 ITBDEF int itb_make_udp();
-ITBDEF int itb_read_message(int sockfd, uint8_t *buffer, int len);
+ITBDEF int itb_read_message(int sockfd, uint8_t *buffer, size_t len);
 ITBDEF int itb_read_message_addr(
-    int sockfd, uint8_t *buffer, int len, struct sockaddr_storage *addr);
-ITBDEF int itb_read_message_port(int sockfd, uint8_t *buffer, int len, int *port);
+    int sockfd, uint8_t *buffer, size_t len, struct sockaddr_storage *addr);
+ITBDEF int itb_read_message_port(int sockfd, uint8_t *buffer, size_t len, int *port);
 ITBDEF int itb_send_message(
-    int sockfd, const uint8_t *buffer, int len, const struct sockaddr_storage *addr);
+    int sockfd, const uint8_t *buffer, size_t len, const struct sockaddr_storage *addr);
 
 //==>epoll wrappers<==
 //wrappers for setting up and using epoll
@@ -261,7 +261,7 @@ int itb_accept_addr(int sfd, struct sockaddr_storage *addr) {
     return ret;
 }
 
-int itb_recv(int sockfd, uint8_t *restrict buffer, int len) {
+int itb_recv(int sockfd, uint8_t *restrict buffer, size_t len) {
     int total = 0, ret;
 readmsg:
     itb_ensure_nonblock((ret = recv(sockfd, buffer + total, len - total, 0)) != -1);
@@ -271,7 +271,7 @@ readmsg:
     goto readmsg;
 }
 
-int itb_send(int sockfd, const uint8_t *restrict buffer, int len) {
+int itb_send(int sockfd, const uint8_t *restrict buffer, size_t len) {
     int ret;
     itb_ensure_nonblock((ret = send(sockfd, buffer, len, 0)) != -1);
     return ret;
@@ -371,7 +371,7 @@ int itb_make_udp(void) {
     return sfd;
 }
 
-int itb_read_message(int sockfd, uint8_t *restrict buffer, int len) {
+int itb_read_message(int sockfd, uint8_t *restrict buffer, size_t len) {
     int total = 0, ret;
 readmsg:
     itb_ensure_nonblock((ret = recvfrom(sockfd, buffer + total, len - total, 0, NULL, NULL)) != -1);
@@ -381,7 +381,7 @@ readmsg:
     goto readmsg;
 }
 
-int itb_read_message_port(int sockfd, uint8_t *restrict buffer, int len, int *restrict port) {
+int itb_read_message_port(int sockfd, uint8_t *restrict buffer, size_t len, int *restrict port) {
     struct sockaddr_storage addr;
     socklen_t addr_len;
     char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
@@ -402,7 +402,7 @@ readmsg:
 }
 
 int itb_read_message_addr(
-    int sockfd, uint8_t *restrict buffer, int len, struct sockaddr_storage *addr) {
+    int sockfd, uint8_t *restrict buffer, size_t len, struct sockaddr_storage *addr) {
     socklen_t addr_len;
     int total = 0, ret;
 readmsg:
@@ -416,7 +416,7 @@ readmsg:
     goto readmsg;
 }
 
-int itb_send_message(int sockfd, const uint8_t *restrict buffer, int len,
+int itb_send_message(int sockfd, const uint8_t *restrict buffer, size_t len,
     const struct sockaddr_storage *restrict addr) {
     int ret;
     socklen_t addr_len = sizeof(struct sockaddr_storage);
