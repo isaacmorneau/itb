@@ -102,19 +102,20 @@ ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 //==>ncurses like replacement<==
 
 typedef struct itb_ui_context {
-    //might need to increase the size for wide char later
-    //TODO Unicode support, uchar.h?
-    char ***doublebuffer;
-    //0 or 1, just for flipping
-    int current_buffer;
+    //for returning to normal terminal settings after
+    struct termios original;
     //max x, max y
     //also corresponds to bottom right position, (0,0) top left
     size_t winsize[2];
     //current x, current y
     size_t cursor[2];
-
-    //for returning to normal terminal settings after
-    struct termios original;
+    //0 or 1, just for flipping
+    int current_buffer;
+    //x*y*2
+    size_t buffsize;
+    //might need to increase the size for wide char later
+    //TODO Unicode support, uchar.h?
+    char ***doublebuffer;
 } itb_ui_context;
 
 //functions as init and close but also sets the terminal modes to raw and back
@@ -122,13 +123,13 @@ typedef struct itb_ui_context {
 //must be called first
 ITBDEF int itb_ui_start(itb_ui_context *ui_ctx);
 //must be called last
-ITBDEF void itb_ui_end(itb_ui_context *ui_ctx);
+ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 
 //swap to back double buffer to render changes
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
 
 //move the cursor to the pos
-ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t pos[2]);
+ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t x, size_t y);
 
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]);
@@ -138,7 +139,9 @@ ITBDEF void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
 
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
+#include <errno.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -449,9 +452,8 @@ ssize_t itb_readline(uint8_t *buffer, size_t len) {
     return nread;
 }
 
-//inspired by http://www.cs.uleth.ca/~holzmann/C/system/ttyraw.c
 int itb_ui_start(itb_ui_context *ui_ctx) {
-    if (isatty(STDIN_FILENO)) {
+    if (!isatty(STDIN_FILENO)) {
         return 1;
     }
 
@@ -477,17 +479,16 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     //backspace, ^U,...),  no extended functions, no signal chars (^Z,^C)
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
-
     //control chars - set return condition: min number of bytes and timer
     //raw.c_cc[VMIN]  = 5;
     //raw.c_cc[VTIME] = 8; // after 5 bytes or .8 seconds after first byte seen
-    //raw.c_cc[VMIN]  = 0;
-    //raw.c_cc[VTIME] = 0; // immediate - anything
+    raw.c_cc[VMIN]  = 0;
+    raw.c_cc[VTIME] = 0; // immediate - anything
     //raw.c_cc[VMIN]  = 2;
     //raw.c_cc[VTIME] = 0; // after two bytes, no timer
 
-    raw.c_cc[VMIN]  = 0;
-    raw.c_cc[VTIME] = 8; // after a byte or .8 seconds
+    //raw.c_cc[VMIN]  = 0;
+    //raw.c_cc[VTIME] = 8; // after a byte or .8 seconds
 
     // put terminal in raw mode after flushing
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw)) {
@@ -502,29 +503,132 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     ui_ctx->winsize[0] = w.ws_row; //x
     ui_ctx->winsize[1] = w.ws_col; //y
 
-    //TODO alloc buffers
+    const size_t data_size   = ui_ctx->winsize[0] * ui_ctx->winsize[1];
+    const size_t rows_size   = ui_ctx->winsize[0] * sizeof(char *);
+    const size_t double_size = 2 * sizeof(char **);
+
+    //data and rows twice and one set of doubles for first and second buffer
+    ui_ctx->buffsize = (data_size + rows_size) * 2 + double_size;
+    void *tmp;
+    if (!(tmp = malloc(ui_ctx->buffsize))) {
+        return 1;
+    }
+    ui_ctx->doublebuffer = tmp;
+
+    memset(ui_ctx->doublebuffer, ' ', ui_ctx->buffsize);
+
+    ui_ctx->doublebuffer[0] = (char **)((char *)tmp + double_size + rows_size);
+    ui_ctx->doublebuffer[1] = (char **)((char *)tmp + double_size + data_size + rows_size);
+
+    for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
+        ui_ctx->doublebuffer[0][x] = ((char *)tmp + double_size + (x * ui_ctx->winsize[1]));
+        ui_ctx->doublebuffer[1][x]
+            = ((char *)tmp + double_size + data_size + rows_size + (x * ui_ctx->winsize[1]));
+    }
+
+    ui_ctx->current_buffer = 0;
+
+    //clear everything and move to the top left
+    //TODO check if fputs is better
+    printf("\033[H\033[2J");
+    ui_ctx->cursor[0] = 0; //x
+    ui_ctx->cursor[1] = 0; //y
 
     return 0;
 }
-//must be called last
-void itb_ui_end(itb_ui_context *ui_ctx) {
+
+int itb_ui_end(itb_ui_context *ui_ctx) {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &ui_ctx->original)) {
         return 1;
     }
-    //TODO dealloc buffers
+
+    free(ui_ctx->doublebuffer);
+
     return 0;
 }
 
-//swap to back double buffer to render changes
-void itb_ui_flip(itb_ui_context *ui_ctx) {}
+void itb_ui_flip(itb_ui_context *ui_ctx) {
+    //move top left
+    itb_ui_mv(ui_ctx, 0, 0);
 
-//move the cursor to the pos
-void itb_ui_mv(itb_ui_context *ui_ctx, size_t pos[2]) {}
+    //flip it
+    bool skipped           = 1;
+    ui_ctx->current_buffer = !ui_ctx->current_buffer;
+    for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
+        for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
+            if (ui_ctx->doublebuffer[ui_ctx->current_buffer][x][y]
+                != ui_ctx->doublebuffer[!ui_ctx->current_buffer][x][y]) {
+                if (skipped) {
+                    itb_ui_mv(ui_ctx, x, y);
+                    skipped = 0;
+                }
+                itb_ui_mv(ui_ctx, x, y);
+                fputc(ui_ctx->doublebuffer[ui_ctx->current_buffer][x][y], stdout);
+            } else {
+                skipped = 1;
+            }
+        }
+    }
+    itb_ui_mv(ui_ctx, 0, 0);
+}
 
-//starts at the top left
-void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]) {}
+void itb_ui_mv(itb_ui_context *ui_ctx, size_t x, size_t y) {
+    //only update if we actually need to
+    if (ui_ctx->cursor[0] != x || ui_ctx->cursor[1] != y) {
+        printf("\033[%ld;%ldH", y+1, x+1);
+        ui_ctx->cursor[0] = x;
+        ui_ctx->cursor[1] = y;
+    }
+}
 
-//starts at current cursor
+void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]) {
+    //if this is outside we cant render any of it
+    if (pos[0] >= ui_ctx->winsize[0] || pos[1] >= ui_ctx->winsize[1]) {
+        return;
+    }
+
+    char **buffer = ui_ctx->doublebuffer[ui_ctx->current_buffer];
+    //tl
+    buffer[pos[0]][pos[1]] = '+';
+
+    if (pos[0] + size[0] < ui_ctx->winsize[0] && pos[1] + size[1] < ui_ctx->winsize[1]) {
+        //tr
+        buffer[pos[0] + size[0]][pos[1]] = '+';
+        //bl
+        buffer[pos[0]][pos[1] + size[1]] = '+';
+        //br
+        buffer[pos[0] + size[0]][pos[1] + size[1]] = '+';
+    } else if (pos[1] + size[1] < ui_ctx->winsize[1]) { // bl only
+        buffer[pos[0]][pos[1] + size[1]] = '+';
+    } else if (pos[0] + size[0] < ui_ctx->winsize[0]) { // tr only
+        buffer[pos[0] + size[0]][pos[1]] = '+';
+    }
+
+    //top line can at least start
+    for (size_t x = pos[0] + 1; x < ui_ctx->winsize[0] && x < pos[0] + size[0] - 1; ++x) {
+        buffer[x][pos[1]] = '-';
+    }
+
+    //bottom line may be off screen
+    if (pos[1] + size[1] < ui_ctx->winsize[1]) {
+        for (size_t x = pos[0] + 1; x < ui_ctx->winsize[0] && x < pos[0] + size[0] - 1; ++x) {
+            buffer[x][pos[1] + size[1]] = '-';
+        }
+    }
+
+    //left line can at least start
+    for (size_t y = pos[1] + 1; y < ui_ctx->winsize[1] && y < pos[1] + size[1] - 1; ++y) {
+        buffer[pos[0]][y] = '|';
+    }
+
+    //right line may be off screen
+    if (pos[0] + size[0] < ui_ctx->winsize[0]) {
+        for (size_t y = pos[1] + 1; y < ui_ctx->winsize[1] && y < pos[1] + size[1] - 1; ++y) {
+            buffer[pos[0] + size[0]][y] = '|';
+        }
+    }
+}
+
 void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {}
 
 #endif //ITB_UI_IMPLEMENTATION

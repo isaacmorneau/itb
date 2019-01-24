@@ -25,9 +25,16 @@ SET(SOURCES
     "itb_testing.c"
     )
 
+SET(RAW_UI_SOURCES
+    "itb_ui_testing.c"
+    )
+
 add_executable(itb ${SOURCES})
+
+add_executable(itb_ui ${RAW_UI_SOURCES})
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 target_link_libraries(itb rt Threads::Threads mbedtls mbedx509 mbedcrypto)
+target_link_libraries(itb_ui rt Threads::Threads)
