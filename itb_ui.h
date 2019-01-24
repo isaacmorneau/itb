@@ -515,22 +515,23 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     }
     ui_ctx->doublebuffer = tmp;
 
-    memset(ui_ctx->doublebuffer, ' ', ui_ctx->buffsize);
-
-    ui_ctx->doublebuffer[0] = (char **)((char *)tmp + double_size + rows_size);
+    ui_ctx->doublebuffer[0] = (char **)((char *)tmp + double_size);
     ui_ctx->doublebuffer[1] = (char **)((char *)tmp + double_size + data_size + rows_size);
 
     for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
         ui_ctx->doublebuffer[0][x] = ((char *)tmp + double_size + (x * ui_ctx->winsize[1]));
+        memset(ui_ctx->doublebuffer[0][x], ' ', ui_ctx->winsize[1]);
         ui_ctx->doublebuffer[1][x]
             = ((char *)tmp + double_size + data_size + rows_size + (x * ui_ctx->winsize[1]));
+        memset(ui_ctx->doublebuffer[1][x], ' ', ui_ctx->winsize[1]);
     }
 
     ui_ctx->current_buffer = 0;
 
     //clear everything and move to the top left
     //TODO check if fputs is better
-    printf("\033[H\033[2J");
+    printf("\x1b[H\x1b[2J");
+    fflush(stdout);
     ui_ctx->cursor[0] = 0; //x
     ui_ctx->cursor[1] = 0; //y
 
@@ -552,8 +553,7 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     itb_ui_mv(ui_ctx, 0, 0);
 
     //flip it
-    bool skipped           = 1;
-    ui_ctx->current_buffer = !ui_ctx->current_buffer;
+    bool skipped = 1;
     for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
         for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
             if (ui_ctx->doublebuffer[ui_ctx->current_buffer][x][y]
@@ -562,23 +562,26 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     itb_ui_mv(ui_ctx, x, y);
                     skipped = 0;
                 }
-                itb_ui_mv(ui_ctx, x, y);
                 fputc(ui_ctx->doublebuffer[ui_ctx->current_buffer][x][y], stdout);
             } else {
                 skipped = 1;
             }
         }
     }
+    ui_ctx->current_buffer = !ui_ctx->current_buffer;
     itb_ui_mv(ui_ctx, 0, 0);
+    fflush(stdout);
 }
 
 void itb_ui_mv(itb_ui_context *ui_ctx, size_t x, size_t y) {
     //only update if we actually need to
     if (ui_ctx->cursor[0] != x || ui_ctx->cursor[1] != y) {
-        printf("\033[%ld;%ldH", y+1, x+1);
+        printf("\x1b[%ld;%ldf", y + 1, x + 1);
+        //this feels overkill
+        fflush(stdout);
         ui_ctx->cursor[0] = x;
         ui_ctx->cursor[1] = y;
-    }
+    } //else no change
 }
 
 void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]) {
