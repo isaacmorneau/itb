@@ -8,6 +8,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <termios.h>
 #include <unistd.h>
 
 //==>configureable defines<==
@@ -97,11 +98,50 @@ ITBDEF int itb_menu_run_once(itb_menu_t *menu, const char *line);
 //- errno on error or len of total read
 // will clear trailing input on read, terminates with '\0' not '\n'
 ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
+
+//==>ncurses like replacement<==
+
+typedef struct itb_ui_context {
+    //might need to increase the size for wide char later
+    //TODO Unicode support, uchar.h?
+    char ***doublebuffer;
+    //0 or 1, just for flipping
+    int current_buffer;
+    //max x, max y
+    //also corresponds to bottom right position, (0,0) top left
+    size_t winsize[2];
+    //current x, current y
+    size_t cursor[2];
+
+    //for returning to normal terminal settings after
+    struct termios original;
+} itb_ui_context;
+
+//functions as init and close but also sets the terminal modes to raw and back
+//
+//must be called first
+ITBDEF int itb_ui_start(itb_ui_context *ui_ctx);
+//must be called last
+ITBDEF void itb_ui_end(itb_ui_context *ui_ctx);
+
+//swap to back double buffer to render changes
+ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
+
+//move the cursor to the pos
+ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t pos[2]);
+
+//starts at the top left
+ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]);
+
+//starts at current cursor
+ITBDEF void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
+
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 int itb_menu_init(itb_menu_t *menu, const char *header) {
     //to make sure that its as dynamic as possible just copy in the string
@@ -408,6 +448,84 @@ ssize_t itb_readline(uint8_t *buffer, size_t len) {
 
     return nread;
 }
+
+//inspired by http://www.cs.uleth.ca/~holzmann/C/system/ttyraw.c
+int itb_ui_start(itb_ui_context *ui_ctx) {
+    if (isatty(STDIN_FILENO)) {
+        return 1;
+    }
+
+    if (tcgetattr(STDIN_FILENO, &ui_ctx->original)) {
+        return 1;
+    }
+
+    struct termios raw;
+
+    raw = ui_ctx->original;
+
+    //input modes - clear indicated ones giving: no break, no CR to NL,
+    //no parity check, no strip char, no start/stop output (sic) control
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+
+    //output modes - clear giving: no post processing such as NL to CR+NL
+    raw.c_oflag &= ~(OPOST);
+
+    //control modes - set 8 bit chars
+    raw.c_cflag |= (CS8);
+
+    //local modes - clear giving: echoing off, canonical off (no erase with
+    //backspace, ^U,...),  no extended functions, no signal chars (^Z,^C)
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+
+    //control chars - set return condition: min number of bytes and timer
+    //raw.c_cc[VMIN]  = 5;
+    //raw.c_cc[VTIME] = 8; // after 5 bytes or .8 seconds after first byte seen
+    //raw.c_cc[VMIN]  = 0;
+    //raw.c_cc[VTIME] = 0; // immediate - anything
+    //raw.c_cc[VMIN]  = 2;
+    //raw.c_cc[VTIME] = 0; // after two bytes, no timer
+
+    raw.c_cc[VMIN]  = 0;
+    raw.c_cc[VTIME] = 8; // after a byte or .8 seconds
+
+    // put terminal in raw mode after flushing
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw)) {
+        return 1;
+    }
+
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w)) {
+        return 1;
+    }
+
+    ui_ctx->winsize[0] = w.ws_row; //x
+    ui_ctx->winsize[1] = w.ws_col; //y
+
+    //TODO alloc buffers
+
+    return 0;
+}
+//must be called last
+void itb_ui_end(itb_ui_context *ui_ctx) {
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &ui_ctx->original)) {
+        return 1;
+    }
+    //TODO dealloc buffers
+    return 0;
+}
+
+//swap to back double buffer to render changes
+void itb_ui_flip(itb_ui_context *ui_ctx) {}
+
+//move the cursor to the pos
+void itb_ui_mv(itb_ui_context *ui_ctx, size_t pos[2]) {}
+
+//starts at the top left
+void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]) {}
+
+//starts at current cursor
+void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {}
 
 #endif //ITB_UI_IMPLEMENTATION
 
