@@ -104,17 +104,17 @@ ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 typedef struct itb_ui_context {
     //for returning to normal terminal settings after
     struct termios original;
-    //max x, max y
-    //also corresponds to bottom right position, (0,0) top left
-    size_t winsize[2];
-    //current x, current y
+    //also corresponds to bottom right position, (1,1) top left
+    size_t rows;
+    size_t cols;
+    //current row, current col
     size_t cursor[2];
-    //0 or 1, just for flipping
-    int current_buffer;
     //x*y*2
     size_t buffsize;
     //might need to increase the size for wide char later
     //TODO Unicode support, uchar.h?
+    //0 - delta buffer
+    //1 - last flipped
     char **doublebuffer[2];
 } itb_ui_context;
 
@@ -129,13 +129,13 @@ ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
 
 //move the cursor to the pos
-ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t x, size_t y);
+ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col);
 
 //starts at the top left
-ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]);
+ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
 
 //starts at the top left
-ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]);
+ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
 
 //starts at current cursor
 ITBDEF void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
@@ -505,45 +505,23 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
         return 1;
     }
 
-    ui_ctx->winsize[0] = w.ws_col; //x
-    ui_ctx->winsize[1] = w.ws_row; //y
+    ui_ctx->rows = w.ws_row;
+    ui_ctx->cols = w.ws_col;
 
-    //const size_t data_size   = ui_ctx->winsize[0] * ui_ctx->winsize[1];
-    const size_t data_size   = ui_ctx->winsize[0];
-    const size_t rows_size   = ui_ctx->winsize[1] * sizeof(char *);
+    ui_ctx->doublebuffer[0] = malloc(ui_ctx->rows * sizeof(char **));
+    ui_ctx->doublebuffer[1] = malloc(ui_ctx->rows * sizeof(char **));
 
-    ui_ctx->doublebuffer[0] = malloc(rows_size*2);
-    ui_ctx->doublebuffer[1] = (char*)ui_ctx->doublebuffer[0]+rows_size;
-    for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {//each row should be one contigious memory segment
-        ui_ctx->doublebuffer[0][y] = malloc(data_size);
-        ui_ctx->doublebuffer[1][y] = malloc(data_size);
+    for (size_t r = 0; r < ui_ctx->rows; ++r) {
+        //each row should be one contigious memory segment
+        ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols);
+        memset(ui_ctx->doublebuffer[0][r], ' ', ui_ctx->cols);
+        ui_ctx->doublebuffer[1][r] = malloc(ui_ctx->cols);
+        memset(ui_ctx->doublebuffer[1][r], ' ', ui_ctx->cols);
     }
-    /*
-    //data and rows twice and one set of doubles for first and second buffer
-    ui_ctx->buffsize = (data_size + rows_size) * 2 + double_size;
-    void *tmp;
-    if (!(tmp = malloc(ui_ctx->buffsize))) {
-        return 1;
-    }
-    ui_ctx->doublebuffer = tmp;
-
-    ui_ctx->doublebuffer[0] = (char **)((char *)tmp + double_size);
-    ui_ctx->doublebuffer[1] = (char **)((char *)tmp + double_size + data_size + rows_size);
-
-    for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
-        ui_ctx->doublebuffer[0][x] = ((char *)tmp + double_size + (x * ui_ctx->winsize[1]));
-        memset(ui_ctx->doublebuffer[0][x], ' ', ui_ctx->winsize[1]);
-        ui_ctx->doublebuffer[1][x]
-            = ((char *)tmp + double_size + data_size + rows_size + (x * ui_ctx->winsize[1]));
-        memset(ui_ctx->doublebuffer[1][x], ' ', ui_ctx->winsize[1]);
-    }
-    */
-
-    ui_ctx->current_buffer = 0;
 
     //clear everything and move to the top left
     //TODO check if fputs is better
-    printf("\x1b[H\x1b[2J");
+    printf("\x1b[2J\x1b[H");
     fflush(stdout);
     ui_ctx->cursor[0] = 0; //x
     ui_ctx->cursor[1] = 0; //y
@@ -556,13 +534,13 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
         return 1;
     }
 
-    //free(ui_ctx->doublebuffer);
-    //temp
-    for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
-        free(ui_ctx->doublebuffer[0][y]);
-        free(ui_ctx->doublebuffer[1][y]);
+    for (size_t r = 0; r < ui_ctx->rows; ++r) {
+        free(ui_ctx->doublebuffer[0][r]);
+        free(ui_ctx->doublebuffer[1][r]);
     }
+
     free(ui_ctx->doublebuffer[0]);
+    free(ui_ctx->doublebuffer[1]);
 
     return 0;
 }
@@ -573,81 +551,91 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
 
     //flip it
     bool skipped = 1;
-    for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
-        for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
-            if (ui_ctx->doublebuffer[ui_ctx->current_buffer][y][x]
-                != ui_ctx->doublebuffer[!ui_ctx->current_buffer][y][x]) {
+    for (size_t r = 0; r < ui_ctx->rows; ++r) {
+        for (size_t c = 0; c < ui_ctx->cols; ++c) {
+            if (ui_ctx->doublebuffer[0][r][c] != ui_ctx->doublebuffer[1][r][c]) {
                 if (skipped) {
-                    itb_ui_mv(ui_ctx, x, y);
+                    itb_ui_mv(ui_ctx, r, c);
                     skipped = 0;
                 }
-                fputc(ui_ctx->doublebuffer[ui_ctx->current_buffer][y][x], stdout);
+                fputc(ui_ctx->doublebuffer[0][r][c], stdout);
             } else {
                 skipped = 1;
             }
         }
+        //copy display to state
+        memcpy(ui_ctx->doublebuffer[1][r], ui_ctx->doublebuffer[0][r], ui_ctx->cols);
     }
-    ui_ctx->current_buffer = !ui_ctx->current_buffer;
+
     itb_ui_mv(ui_ctx, 0, 0);
     fflush(stdout);
 }
 
-void itb_ui_mv(itb_ui_context *ui_ctx, size_t x, size_t y) {
+void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col) {
     //only update if we actually need to
-    if (ui_ctx->cursor[0] != x || ui_ctx->cursor[1] != y) {
-        printf("\x1b[%ld;%ldf", y + 1, x + 1);
+    if (ui_ctx->cursor[0] != row || ui_ctx->cursor[1] != col) {
+        printf("\x1b[%ld;%ldf", row, col);
         //this feels overkill
         fflush(stdout);
-        ui_ctx->cursor[0] = x;
-        ui_ctx->cursor[1] = y;
+        ui_ctx->cursor[0] = row;
+        ui_ctx->cursor[1] = col;
     } //else no change
 }
 
-void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]) {
+void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height) {
     //if this is outside we cant render any of it
-    if (pos[0] >= ui_ctx->winsize[0] || pos[1] >= ui_ctx->winsize[1]) {
+    if (row > ui_ctx->rows || col > ui_ctx->cols || !row || !col || width < 2 || height < 2) {
         return;
     }
+    //1 based to 0 based
+    --row;
+    --col;
 
-    char **buffer = ui_ctx->doublebuffer[ui_ctx->current_buffer];
+    char **buffer = ui_ctx->doublebuffer[0];
     //tl
-    buffer[pos[0]][pos[1]] = '+';
+    buffer[row][col] = '+';
 
-    if (pos[0] + size[0] < ui_ctx->winsize[0] && pos[1] + size[1] < ui_ctx->winsize[1]) {
-        //tr
-        buffer[pos[0] + size[0]][pos[1]] = '+';
+    if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
-        buffer[pos[0]][pos[1] + size[1]] = '+';
+        buffer[row + height - 1][col] = '+';
+        //tr
+        buffer[row][col + width - 1] = '+';
         //br
-        buffer[pos[0] + size[0]][pos[1] + size[1]] = '+';
-    } else if (pos[1] + size[1] < ui_ctx->winsize[1]) { // bl only
-        buffer[pos[0]][pos[1] + size[1]] = '+';
-    } else if (pos[0] + size[0] < ui_ctx->winsize[0]) { // tr only
-        buffer[pos[0] + size[0]][pos[1]] = '+';
+        buffer[row + height - 1][col + width - 1] = '+';
+    } else if (col + width < ui_ctx->cols) { // tr only
+        buffer[row][col + width - 1] = '+';
+    } else if (row + height < ui_ctx->rows) { // bl only
+        buffer[row + height][col] = '+';
     }
 
     //top line can at least start
-    for (size_t x = pos[0] + 1; x < ui_ctx->winsize[0] && x < pos[0] + size[0] - 1; ++x) {
-        buffer[x][pos[1]] = '-';
+    for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
+        buffer[row][c] = '-';
     }
 
     //bottom line may be off screen
-    if (pos[1] + size[1] < ui_ctx->winsize[1]) {
-        for (size_t x = pos[0] + 1; x < ui_ctx->winsize[0] && x < pos[0] + size[0] - 1; ++x) {
-            buffer[x][pos[1] + size[1]] = '-';
+    if (row + height < ui_ctx->rows) {
+        for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
+            buffer[row + height - 1][c] = '-';
         }
     }
 
     //left line can at least start
-    for (size_t y = pos[1] + 1; y < ui_ctx->winsize[1] && y < pos[1] + size[1] - 1; ++y) {
-        buffer[pos[0]][y] = '|';
+    for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
+        buffer[r][col] = '|';
     }
 
     //right line may be off screen
-    if (pos[0] + size[0] < ui_ctx->winsize[0]) {
-        for (size_t y = pos[1] + 1; y < ui_ctx->winsize[1] && y < pos[1] + size[1] - 1; ++y) {
-            buffer[pos[0] + size[0]][y] = '|';
+    if (col + width < ui_ctx->cols) { // tr only
+        for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
+            buffer[r][col + width - 1] = '|';
         }
+    }
+}
+
+void itb_ui_clear(itb_ui_context *ui_ctx) {
+    for (size_t r = 0; r < ui_ctx->rows; ++r) {
+        memset(ui_ctx->doublebuffer[0][r], ' ', ui_ctx->cols);
     }
 }
 

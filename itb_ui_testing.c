@@ -11,20 +11,15 @@ int main(void) {
         return 1;
     }
 
-    size_t pos[2][2];
-
-    pos[0][0] = 10;
-    pos[0][1] = 5;
-    pos[1][0] = 5;
-    pos[1][1] = 10;
-
-    size_t size[2] = {20, 20};
-
     for (int i = 0; i < 4; ++i) {
-        itb_ui_box(&ctx, pos[i%2], size);
+        itb_ui_box(&ctx, i+5, i+5, 20, 20);
         itb_ui_flip(&ctx);
         sleep(1);
     }
+
+    itb_ui_clear(&ctx);
+    itb_ui_box(&ctx, 5, 5, 10, 10);
+    itb_ui_flip(&ctx);
 
     itb_ui_end(&ctx);
     return 0;
