@@ -549,7 +549,6 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     //move top left
     itb_ui_mv(ui_ctx, 0, 0);
 
-    //flip it
     bool skipped = 1;
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         size_t col   = 0;
@@ -560,19 +559,18 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     col = c;
                 }
                 ++width;
-            } else {
-                if (width) {
-                    if (skipped) {
-                        itb_ui_mv(ui_ctx, r, col);
-                        skipped = 0;
-                    }
-                    fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
-                    width = 0;
-                } else {
-                    skipped = 1;
+            } else if (width) {
+                if (skipped) {
+                    itb_ui_mv(ui_ctx, r, col);
+                    skipped = 0;
                 }
+                fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
+                width = 0;
+            } else {
+                skipped = 1;
             }
         }
+        //catch EOL deltas
         if (width) {
             if (skipped) {
                 itb_ui_mv(ui_ctx, r, col);
@@ -583,7 +581,6 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         } else {
             skipped = 1;
         }
-
         //copy display to state
         memcpy(ui_ctx->doublebuffer[1][r], ui_ctx->doublebuffer[0][r], ui_ctx->cols);
     }
