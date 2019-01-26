@@ -515,10 +515,9 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         //each row should be one contigious memory segment
-        ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols);
-        memset(ui_ctx->doublebuffer[0][r], ' ', ui_ctx->cols);
-        ui_ctx->doublebuffer[1][r] = malloc(ui_ctx->cols);
-        memset(ui_ctx->doublebuffer[1][r], ' ', ui_ctx->cols);
+        ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
+        ui_ctx->doublebuffer[1][r] = ui_ctx->doublebuffer[0][r] + ui_ctx->cols;
+        memset(ui_ctx->doublebuffer[0][r], ' ', ui_ctx->cols * 2);
     }
 
     //clear everything and move to the top left
@@ -544,7 +543,6 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         free(ui_ctx->doublebuffer[0][r]);
-        free(ui_ctx->doublebuffer[1][r]);
     }
 
     free(ui_ctx->doublebuffer[0]);
