@@ -510,6 +510,9 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     ui_ctx->rows = w.ws_row;
     ui_ctx->cols = w.ws_col;
 
+    //the initialization is for laying out the memory as follows
+    //[page 0 rows][page 1 rows][page 0 cols][page 1 cols]
+
     const size_t row_size  = ui_ctx->rows * sizeof(char **);
     const size_t col_size  = ui_ctx->cols;
     const size_t data_size = ui_ctx->rows * ui_ctx->cols;
