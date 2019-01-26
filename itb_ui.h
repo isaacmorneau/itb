@@ -494,15 +494,8 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
     //control chars - set return condition: min number of bytes and timer
-    //raw.c_cc[VMIN]  = 5;
-    //raw.c_cc[VTIME] = 8; // after 5 bytes or .8 seconds after first byte seen
     raw.c_cc[VMIN]  = 0;
     raw.c_cc[VTIME] = 0; // immediate - anything
-    //raw.c_cc[VMIN]  = 2;
-    //raw.c_cc[VTIME] = 0; // after two bytes, no timer
-
-    //raw.c_cc[VMIN]  = 0;
-    //raw.c_cc[VTIME] = 8; // after a byte or .8 seconds
 
     // put terminal in raw mode after flushing
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw)) {
@@ -517,8 +510,8 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     ui_ctx->rows = w.ws_row;
     ui_ctx->cols = w.ws_col;
 
-    ui_ctx->doublebuffer[0] = malloc(ui_ctx->rows * sizeof(char **));
-    ui_ctx->doublebuffer[1] = malloc(ui_ctx->rows * sizeof(char **));
+    ui_ctx->doublebuffer[0] = malloc(ui_ctx->rows * sizeof(char **) * 2);
+    ui_ctx->doublebuffer[1] = ui_ctx->doublebuffer[0] + ui_ctx->rows;
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         //each row should be one contigious memory segment
@@ -555,7 +548,6 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
     }
 
     free(ui_ctx->doublebuffer[0]);
-    free(ui_ctx->doublebuffer[1]);
 
     return 0;
 }
