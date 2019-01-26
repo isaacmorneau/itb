@@ -115,7 +115,7 @@ typedef struct itb_ui_context {
     size_t buffsize;
     //might need to increase the size for wide char later
     //TODO Unicode support, uchar.h?
-    char ***doublebuffer;
+    char **doublebuffer[2];
 } itb_ui_context;
 
 //functions as init and close but also sets the terminal modes to raw and back
@@ -133,6 +133,9 @@ ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t x, size_t y);
 
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]);
+
+//starts at the top left
+ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx, size_t pos[2], size_t size[2]);
 
 //starts at current cursor
 ITBDEF void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
@@ -452,6 +455,8 @@ ssize_t itb_readline(uint8_t *buffer, size_t len) {
     return nread;
 }
 
+//==>ncurses like replacement<==
+
 int itb_ui_start(itb_ui_context *ui_ctx) {
     if (!isatty(STDIN_FILENO)) {
         return 1;
@@ -500,13 +505,20 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
         return 1;
     }
 
-    ui_ctx->winsize[0] = w.ws_row; //x
-    ui_ctx->winsize[1] = w.ws_col; //y
+    ui_ctx->winsize[0] = w.ws_col; //x
+    ui_ctx->winsize[1] = w.ws_row; //y
 
-    const size_t data_size   = ui_ctx->winsize[0] * ui_ctx->winsize[1];
-    const size_t rows_size   = ui_ctx->winsize[0] * sizeof(char *);
-    const size_t double_size = 2 * sizeof(char **);
+    //const size_t data_size   = ui_ctx->winsize[0] * ui_ctx->winsize[1];
+    const size_t data_size   = ui_ctx->winsize[0];
+    const size_t rows_size   = ui_ctx->winsize[1] * sizeof(char *);
 
+    ui_ctx->doublebuffer[0] = malloc(rows_size*2);
+    ui_ctx->doublebuffer[1] = (char*)ui_ctx->doublebuffer[0]+rows_size;
+    for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {//each row should be one contigious memory segment
+        ui_ctx->doublebuffer[0][y] = malloc(data_size);
+        ui_ctx->doublebuffer[1][y] = malloc(data_size);
+    }
+    /*
     //data and rows twice and one set of doubles for first and second buffer
     ui_ctx->buffsize = (data_size + rows_size) * 2 + double_size;
     void *tmp;
@@ -525,6 +537,7 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
             = ((char *)tmp + double_size + data_size + rows_size + (x * ui_ctx->winsize[1]));
         memset(ui_ctx->doublebuffer[1][x], ' ', ui_ctx->winsize[1]);
     }
+    */
 
     ui_ctx->current_buffer = 0;
 
@@ -543,7 +556,13 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
         return 1;
     }
 
-    free(ui_ctx->doublebuffer);
+    //free(ui_ctx->doublebuffer);
+    //temp
+    for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
+        free(ui_ctx->doublebuffer[0][y]);
+        free(ui_ctx->doublebuffer[1][y]);
+    }
+    free(ui_ctx->doublebuffer[0]);
 
     return 0;
 }
@@ -554,15 +573,15 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
 
     //flip it
     bool skipped = 1;
-    for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
-        for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
-            if (ui_ctx->doublebuffer[ui_ctx->current_buffer][x][y]
-                != ui_ctx->doublebuffer[!ui_ctx->current_buffer][x][y]) {
+    for (size_t y = 0; y < ui_ctx->winsize[1]; ++y) {
+        for (size_t x = 0; x < ui_ctx->winsize[0]; ++x) {
+            if (ui_ctx->doublebuffer[ui_ctx->current_buffer][y][x]
+                != ui_ctx->doublebuffer[!ui_ctx->current_buffer][y][x]) {
                 if (skipped) {
                     itb_ui_mv(ui_ctx, x, y);
                     skipped = 0;
                 }
-                fputc(ui_ctx->doublebuffer[ui_ctx->current_buffer][x][y], stdout);
+                fputc(ui_ctx->doublebuffer[ui_ctx->current_buffer][y][x], stdout);
             } else {
                 skipped = 1;
             }
