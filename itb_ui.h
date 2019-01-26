@@ -552,17 +552,40 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     //flip it
     bool skipped = 1;
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
+        char *changes = NULL;
+        size_t total  = 0;
         for (size_t c = 0; c < ui_ctx->cols; ++c) {
             if (ui_ctx->doublebuffer[0][r][c] != ui_ctx->doublebuffer[1][r][c]) {
-                if (skipped) {
-                    itb_ui_mv(ui_ctx, r, c);
-                    skipped = 0;
+                if (!changes) {
+                    changes = ui_ctx->doublebuffer[0][r] + c;
                 }
-                fputc(ui_ctx->doublebuffer[0][r][c], stdout);
+                ++total;
             } else {
-                skipped = 1;
+                if (changes) {
+                    if (skipped) {
+                        itb_ui_mv(ui_ctx, r, c);
+                        skipped = 0;
+                    }
+                    fwrite(changes, 1, total, stdout);
+                    changes = NULL;
+                    total = 0;
+                } else {
+                    skipped = 1;
+                }
             }
         }
+        if (changes) {
+            if (skipped) {
+                itb_ui_mv(ui_ctx, r, 0);
+                skipped = 0;
+            }
+            fwrite(changes, 1, total, stdout);
+            changes = NULL;
+            total = 0;
+        } else {
+            skipped = 1;
+        }
+
         //copy display to state
         memcpy(ui_ctx->doublebuffer[1][r], ui_ctx->doublebuffer[0][r], ui_ctx->cols);
     }

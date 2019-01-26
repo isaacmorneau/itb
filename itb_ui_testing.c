@@ -11,8 +11,9 @@ int main(void) {
         return 1;
     }
 
-    for (int i = 0; i < 4; ++i) {
-        itb_ui_box(&ctx, i+5, i+5, 20, 20);
+    for (int i = 0; i < 5; ++i) {
+        itb_ui_clear(&ctx);
+        itb_ui_box(&ctx, (i%20)+5, (i%20)+5, 20, 20);
         itb_ui_flip(&ctx);
         sleep(1);
     }
