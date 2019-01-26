@@ -640,7 +640,7 @@ void itb_ui_hide(itb_ui_context *ui_ctx) {
 }
 
 void itb_ui_show(itb_ui_context *ui_ctx) {
-    if (ui_ctx->cursor_visible) {
+    if (!ui_ctx->cursor_visible) {
         fputs("\x1b[?25h", stdout);
         ui_ctx->cursor_visible = true;
     }
