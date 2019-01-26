@@ -115,7 +115,7 @@ typedef struct itb_ui_context {
     //TODO Unicode support, uchar.h?
     //0 - delta buffer
     //1 - last flipped
-    char **doublebuffer[2];
+    wchar_t **doublebuffer[2];
     bool cursor_visible;
 } itb_ui_context;
 
@@ -144,10 +144,10 @@ ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t wi
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
 
 //starts at current cursor
-ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
+ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const wchar_t *fmt, ...);
 
 //starts at row and col specified
-ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...);
+ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const wchar_t *fmt, ...);
 
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
@@ -157,6 +157,7 @@ ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <wchar.h>
 
 int itb_menu_init(itb_menu_t *menu, const char *header) {
     //to make sure that its as dynamic as possible just copy in the string
@@ -513,30 +514,29 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     //the initialization is for laying out the memory as follows
     //[page 0 rows][page 1 rows][page 0 cols][page 1 cols]
 
-    const size_t row_size  = ui_ctx->rows * sizeof(char **);
-    const size_t col_size  = ui_ctx->cols;
-    const size_t data_size = ui_ctx->rows * ui_ctx->cols;
+    const size_t row_size  = ui_ctx->rows * sizeof(wchar_t **);
+    const size_t col_size  = ui_ctx->cols * sizeof(wchar_t);
+    const size_t data_size = ui_ctx->rows * ui_ctx->cols * sizeof(wchar_t);
 
-    char *temp = malloc((row_size + data_size) * 2);
+    wchar_t *temp = malloc((row_size + data_size) * 2);
 
-    char *row1_offset  = temp;
-    char *row2_offset  = temp + row_size;
-    char *data1_offset = temp + row_size * 2;
-    char *data2_offset = temp + row_size * 2 + data_size;
+    wchar_t *row1_offset  = temp;
+    wchar_t *row2_offset  = temp + row_size;
+    wchar_t *data1_offset = temp + row_size * 2;
+    wchar_t *data2_offset = temp + row_size * 2 + data_size;
 
-    ui_ctx->doublebuffer[0] = (char **)row1_offset;
-    ui_ctx->doublebuffer[1] = (char **)row2_offset;
+    ui_ctx->doublebuffer[0] = (wchar_t **)row1_offset;
+    ui_ctx->doublebuffer[1] = (wchar_t **)row2_offset;
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         //ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
         ui_ctx->doublebuffer[0][r] = data1_offset + (r * col_size);
         ui_ctx->doublebuffer[1][r] = data2_offset + (r * col_size);
     }
-    memset(data1_offset, ' ', data_size * 2);
+    wmemset(data1_offset, L' ', data_size * 2);
 
     //clear everything and move to the top left
-    //TODO check if fputs is better
-    printf("\x1b[2J\x1b[H");
+    fputs("\x1b[2J\x1b[H", stdout);
     fflush(stdout);
     ui_ctx->cursor[0] = 0; //x
     ui_ctx->cursor[1] = 0; //y
@@ -578,7 +578,7 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         size_t col   = 0;
         size_t width = 0;
         for (size_t c = 0; c < ui_ctx->cols; ++c) {
-            if (ui_ctx->doublebuffer[0][r][c] != ui_ctx->doublebuffer[1][r][c]) {
+            if (wcsncmp(ui_ctx->doublebuffer[0][r]+c, ui_ctx->doublebuffer[1][r]+c, 1)) {
                 if (!width) {
                     col = c;
                 }
@@ -588,8 +588,8 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     itb_ui_mv(ui_ctx, r, col);
                     skipped = 0;
                 }
-                fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
-                memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+                fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
+                wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
                 width = 0;
             } else {
                 skipped = 1;
@@ -601,8 +601,8 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                 itb_ui_mv(ui_ctx, r, col);
                 skipped = 0;
             }
-            fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
-            memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+            fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
+            wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
             width = 0;
         } else {
             skipped = 1;
@@ -655,70 +655,68 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     --row;
     --col;
 
-    char **buffer = ui_ctx->doublebuffer[0];
+    wchar_t **buffer = ui_ctx->doublebuffer[0];
     //tl
-    buffer[row][col] = '+';
+    buffer[row][col] = L'+';
 
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
-        buffer[row + height - 1][col] = '+';
+        buffer[row + height - 1][col] = L'+';
         //tr
-        buffer[row][col + width - 1] = '+';
+        buffer[row][col + width - 1] = L'+';
         //br
-        buffer[row + height - 1][col + width - 1] = '+';
+        buffer[row + height - 1][col + width - 1] = L'+';
     } else if (col + width < ui_ctx->cols) { // tr only
-        buffer[row][col + width - 1] = '+';
+        buffer[row][col + width - 1] = L'+';
     } else if (row + height < ui_ctx->rows) { // bl only
-        buffer[row + height][col] = '+';
+        buffer[row + height][col] = L'+';
     }
 
     //top line can at least start
     for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
-        buffer[row][c] = '-';
+        buffer[row][c] = L'-';
     }
 
     //bottom line may be off screen
     if (row + height < ui_ctx->rows) {
         for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
-            buffer[row + height - 1][c] = '-';
+            buffer[row + height - 1][c] = L'-';
         }
     }
 
     //left line can at least start
     for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
-        buffer[r][col] = '|';
+        buffer[r][col] = L'|';
     }
 
     //right line may be off screen
     if (col + width < ui_ctx->cols) { // tr only
         for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
-            buffer[r][col + width - 1] = '|';
+            buffer[r][col + width - 1] = L'|';
         }
     }
 }
 
 void itb_ui_clear(itb_ui_context *ui_ctx) {
-    for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        memset(ui_ctx->doublebuffer[0][r], ' ', ui_ctx->cols);
-    }
+    wmemset(ui_ctx->doublebuffer[0][0], L' ', ui_ctx->cols * ui_ctx->rows);
 }
 
-int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
+int itb_ui_printf(itb_ui_context *ui_ctx, const wchar_t *fmt, ...) {
     va_list args;
     int ret;
     va_start(args, fmt);
-    ret = vsnprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
+    ret = vswprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
         ui_ctx->cols - ui_ctx->cursor[1], fmt, args);
     va_end(args);
     return ret;
 }
 
-int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...) {
+int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const wchar_t *fmt, ...) {
     if (row && row <= ui_ctx->rows && col && col <= ui_ctx->cols) {
         va_list args;
         int ret;
         va_start(args, fmt);
-        ret = vsnprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
+        ret = vswprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
         va_end(args);
         return ret;
     } else {
