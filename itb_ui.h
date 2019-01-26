@@ -510,15 +510,26 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     ui_ctx->rows = w.ws_row;
     ui_ctx->cols = w.ws_col;
 
-    ui_ctx->doublebuffer[0] = malloc(ui_ctx->rows * sizeof(char **) * 2);
-    ui_ctx->doublebuffer[1] = ui_ctx->doublebuffer[0] + ui_ctx->rows;
+    const size_t row_size  = ui_ctx->rows * sizeof(char **);
+    const size_t col_size  = ui_ctx->cols;
+    const size_t data_size = ui_ctx->rows * ui_ctx->cols;
+
+    char *temp = malloc((row_size + data_size) * 2);
+
+    char *row1_offset  = temp;
+    char *row2_offset  = temp + row_size;
+    char *data1_offset = temp + row_size * 2;
+    char *data2_offset = temp + row_size * 2 + data_size;
+
+    ui_ctx->doublebuffer[0] = (char **)row1_offset;
+    ui_ctx->doublebuffer[1] = (char **)row2_offset;
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        //each row should be one contigious memory segment
-        ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
-        ui_ctx->doublebuffer[1][r] = ui_ctx->doublebuffer[0][r] + ui_ctx->cols;
-        memset(ui_ctx->doublebuffer[0][r], ' ', ui_ctx->cols * 2);
+        //ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
+        ui_ctx->doublebuffer[0][r] = data1_offset + (r * col_size);
+        ui_ctx->doublebuffer[1][r] = data2_offset + (r * col_size);
     }
+    memset(data1_offset, ' ', data_size * 2);
 
     //clear everything and move to the top left
     //TODO check if fputs is better
@@ -542,7 +553,7 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
     }
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        free(ui_ctx->doublebuffer[0][r]);
+        //free(ui_ctx->doublebuffer[0][r]);
     }
 
     free(ui_ctx->doublebuffer[0]);
@@ -575,6 +586,7 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     skipped = 0;
                 }
                 fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
+                memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
                 width = 0;
             } else {
                 skipped = 1;
@@ -587,12 +599,11 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                 skipped = 0;
             }
             fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
+            memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
             width = 0;
         } else {
             skipped = 1;
         }
-        //copy display to state
-        memcpy(ui_ctx->doublebuffer[1][r], ui_ctx->doublebuffer[0][r], ui_ctx->cols);
     }
 
     //restore previous state
