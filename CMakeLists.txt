@@ -33,6 +33,11 @@ add_executable(itb ${SOURCES})
 
 add_executable(itb_ui ${RAW_UI_SOURCES})
 
+if (CMAKE_BUILD_TYPE EQUAL Release)
+    set_target_properties(itb PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE POSITION_INDEPENDENT_CODE TRUE)
+    set_target_properties(itb_ui PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE POSITION_INDEPENDENT_CODE TRUE)
+endif()
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 

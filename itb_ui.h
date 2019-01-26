@@ -570,7 +570,7 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     cursor[0]       = ui_ctx->cursor[0];
     cursor[1]       = ui_ctx->cursor[1];
     //move top left
-    itb_ui_mv(ui_ctx, 0, 0);
+    itb_ui_mv(ui_ctx, 1, 1);
     itb_ui_hide(ui_ctx);
 
     bool skipped = 1;
@@ -620,7 +620,11 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
 void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col) {
     //only update if we actually need to
     if (ui_ctx->cursor[0] != row || ui_ctx->cursor[1] != col) {
-        printf("\x1b[%ld;%ldf", row, col);
+        if (row == 1 && col == 1) {
+            fputs("\x1b[H", stdout);
+        } else {
+            printf("\x1b[%ld;%ldf", row, col);
+        }
         //this feels overkill
         fflush(stdout);
         ui_ctx->cursor[0] = row;
