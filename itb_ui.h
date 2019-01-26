@@ -116,6 +116,7 @@ typedef struct itb_ui_context {
     //0 - delta buffer
     //1 - last flipped
     char **doublebuffer[2];
+    bool cursor_visible;
 } itb_ui_context;
 
 //functions as init and close but also sets the terminal modes to raw and back
@@ -125,11 +126,16 @@ ITBDEF int itb_ui_start(itb_ui_context *ui_ctx);
 //must be called last
 ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 
-//swap to back double buffer to render changes
+//render the scene
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
 
 //move the cursor to the pos
 ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col);
+
+//hide the cursor
+ITBDEF void itb_ui_hide(itb_ui_context *ui_ctx);
+//show the cursor
+ITBDEF void itb_ui_show(itb_ui_context *ui_ctx);
 
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
@@ -138,7 +144,10 @@ ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t wi
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
 
 //starts at current cursor
-ITBDEF void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
+ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
+
+//starts at row and col specified
+ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...);
 
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
@@ -526,10 +535,16 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     ui_ctx->cursor[0] = 0; //x
     ui_ctx->cursor[1] = 0; //y
 
+    ui_ctx->cursor_visible = true;
+
     return 0;
 }
 
 int itb_ui_end(itb_ui_context *ui_ctx) {
+    if (!ui_ctx->cursor_visible) {
+        itb_ui_show(ui_ctx);
+    }
+
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &ui_ctx->original)) {
         return 1;
     }
@@ -546,8 +561,13 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
 }
 
 void itb_ui_flip(itb_ui_context *ui_ctx) {
+    size_t cursor[2];
+    bool isvisibile = ui_ctx->cursor_visible;
+    cursor[0]       = ui_ctx->cursor[0];
+    cursor[1]       = ui_ctx->cursor[1];
     //move top left
     itb_ui_mv(ui_ctx, 0, 0);
+    itb_ui_hide(ui_ctx);
 
     bool skipped = 1;
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
@@ -585,7 +605,11 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         memcpy(ui_ctx->doublebuffer[1][r], ui_ctx->doublebuffer[0][r], ui_ctx->cols);
     }
 
-    itb_ui_mv(ui_ctx, 0, 0);
+    //restore previous state
+    itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
+    if (isvisibile) {
+        itb_ui_show(ui_ctx);
+    }
     fflush(stdout);
 }
 
@@ -598,6 +622,20 @@ void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col) {
         ui_ctx->cursor[0] = row;
         ui_ctx->cursor[1] = col;
     } //else no change
+}
+
+void itb_ui_hide(itb_ui_context *ui_ctx) {
+    if (ui_ctx->cursor_visible) {
+        fputs("\x1b[?25l", stdout);
+        ui_ctx->cursor_visible = false;
+    }
+}
+
+void itb_ui_show(itb_ui_context *ui_ctx) {
+    if (ui_ctx->cursor_visible) {
+        fputs("\x1b[?25h", stdout);
+        ui_ctx->cursor_visible = true;
+    }
 }
 
 void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height) {
@@ -657,7 +695,28 @@ void itb_ui_clear(itb_ui_context *ui_ctx) {
     }
 }
 
-void itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {}
+int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
+    va_list args;
+    int ret;
+    va_start(args, fmt);
+    ret = vsnprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
+        ui_ctx->cols - ui_ctx->cursor[1], fmt, args);
+    va_end(args);
+    return ret;
+}
+
+int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...) {
+    if (row && row <= ui_ctx->rows && col && col <= ui_ctx->cols) {
+        va_list args;
+        int ret;
+        va_start(args, fmt);
+        ret = vsnprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
+        va_end(args);
+        return ret;
+    } else {
+        return -1;
+    }
+}
 
 #endif //ITB_UI_IMPLEMENTATION
 

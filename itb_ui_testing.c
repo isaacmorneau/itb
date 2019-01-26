@@ -13,6 +13,7 @@ int main(void) {
 
     for (int i = 0; i < 10000; ++i) {
         itb_ui_box(&ctx, (i%20)+1, (i%100)+1, 10, 10);
+        itb_ui_rcprintf(&ctx, (i%20)+1, (i%100)+1, "<%d>", i);
         itb_ui_flip(&ctx);
     }
 
