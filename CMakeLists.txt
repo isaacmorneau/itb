@@ -5,7 +5,7 @@ set (itb_VERSION_MAJOR 1)
 set (itb_VERSION_MINOR 0)
 
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
 
@@ -28,6 +28,10 @@ SET(SOURCES
 SET(RAW_UI_SOURCES
     "itb_ui_testing.c"
     )
+
+#force regeneration of the obfuscated strings header
+add_custom_target(gen_itb_obf ALL COMMAND python3 "${PROJECT_SOURCE_DIR}/itb_obfs.py" "${PROJECT_SOURCE_DIR}/itb_obfs.h" "itb_obfs_enc.h")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(itb ${SOURCES})
 
