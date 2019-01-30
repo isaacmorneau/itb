@@ -197,6 +197,12 @@ ITBDEF enum itb_uri_type itb_uri_parse(itb_uri_t *uri, const char *s);
 ITBDEF void itb_uri_print(itb_uri_t *uri);
 ITBDEF void itb_uri_close(itb_uri_t *uri);
 
+//==>obfuscation helpers<==
+
+//extract the c string for the encrypted text via simple xor
+//expects encrypted string to be an array first with the ciphertext with an equal length xor afterward
+ITBDEF void itb_obfs_xor(uint8_t *encrypted, char *decrypted, size_t len);
+
 #endif //ITB_H
 
 #ifdef ITB_IMPLEMENTATION
@@ -238,7 +244,7 @@ typedef struct {
 } itb_broadcast_msg_queue_t;
 
 //itb_broadcast file globals
-itb_broadcast_msg_queue_t queue;
+itb_broadcast_msg_queue_t itb_queue;
 sem_t itb_queue_sem;
 pthread_mutex_t itb_queue_mut     = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t itb_broadcast_mut = PTHREAD_MUTEX_INITIALIZER;
@@ -252,18 +258,18 @@ void (***itb_broadcast_callbacks)(const itb_broadcast_msg_t *msg) = NULL;
 void *itb_broadcast_handler(void *unused) {
     (void)unused;
     while (1) {
-        //wait for a message to be queued
+        //wait for a message to be itb_queued
         sem_wait(&itb_queue_sem);
         //dont let further circ buff modifications happen yet
         pthread_mutex_lock(&itb_queue_mut);
         //update the circ buff and consume the tail
-        if (queue.tail != queue.head) {
-            itb_broadcast_msg(&queue.buffer[queue.tail]);
-            int next = queue.tail + 1;
+        if (itb_queue.tail != itb_queue.head) {
+            itb_broadcast_msg(&itb_queue.buffer[itb_queue.tail]);
+            int next = itb_queue.tail + 1;
             if (next == ITB_BROADCAST_QUEUE_SIZE) {
                 next = 0;
             }
-            queue.tail = next;
+            itb_queue.tail = next;
         }
         pthread_mutex_unlock(&itb_queue_mut);
     }
@@ -271,8 +277,8 @@ void *itb_broadcast_handler(void *unused) {
 }
 
 void itb_broadcast_init(void) {
-    queue.head = 0;
-    queue.tail = 0;
+    itb_queue.head = 0;
+    itb_queue.tail = 0;
     itb_ensure(sem_init(&itb_queue_sem, 0, 0) != -1);
     //spin up the broadcast msg consuming thread
     pthread_t th_id;
@@ -309,19 +315,19 @@ void itb_broadcast_msg(const itb_broadcast_msg_t *restrict msg) {
 
 int itb_broadcast_queue_msg(const itb_broadcast_msg_t *restrict msg) {
     pthread_mutex_lock(&itb_queue_mut);
-    int next = queue.head;
+    int next = itb_queue.head;
 
     if (next == ITB_BROADCAST_QUEUE_SIZE) {
         next = 0;
     }
 
-    if (next + 1 == queue.tail) {
+    if (next + 1 == itb_queue.tail) {
         pthread_mutex_unlock(&itb_queue_mut);
         return -1; //queue full
     }
 
-    queue.buffer[next++] = *msg;
-    queue.head           = next;
+    itb_queue.buffer[next++] = *msg;
+    itb_queue.head           = next;
 
     pthread_mutex_unlock(&itb_queue_mut);
     sem_post(&itb_queue_sem);
@@ -568,6 +574,7 @@ void itb_uri_print(itb_uri_t *uri) {
         printf(":%s", uri->suffix);
     puts("");
 }
+
 void itb_uri_close(itb_uri_t *uri) {
     if (!uri) {
         return;
@@ -577,6 +584,14 @@ void itb_uri_close(itb_uri_t *uri) {
         free(uri->buffer);
     }
     memset(uri, 0, sizeof(itb_uri_t));
+}
+
+//==>obfuscation helpers<==
+
+void itb_obfs_xor(uint8_t *encrypted, char *decrypted, size_t len) {
+    for (size_t i = 0; i < len; ++i) {
+        decrypted[i] = encrypted[i] ^ encrypted[len + i];
+    }
 }
 
 #endif //ITB_IMPLEMENTATION
