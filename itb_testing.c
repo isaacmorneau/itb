@@ -14,6 +14,10 @@
 #define ITB_NET_IMPLEMENTATION
 #include "itb_net.h"
 
+//NOTE if this doesnt exist that means you havent run the build system yet
+//this file is generated from itb_obfs.h via itb_obfs.py
+#include "itb_obfs_enc.h"
+
 void test_callback(void * unused) {
     (void)unused;
     puts("test message");
@@ -122,6 +126,17 @@ void test_uri(void * unused) {
 }
 
 int main(void) {
+    char decoded[SOME_STRING_LEN];
+    uint8_t runtimedecode[] = SOME_STRING_ENC;
+
+    itb_obfs_xor(runtimedecode, decoded, SOME_STRING_LEN);
+    printf("decoded '%s'\n", decoded);
+
+    char decoded_escapes[OTHER_CONSTANT_LEN];
+    uint8_t runtimedecode_escapes[] = OTHER_CONSTANT_ENC;
+    itb_obfs_xor(runtimedecode_escapes, decoded_escapes, OTHER_CONSTANT_LEN);
+    printf("decoded '%s'\n", decoded_escapes);
+
     itb_menu_t mainmenu, submenu, subsubmenu;
     bool toggle = 0;
 
