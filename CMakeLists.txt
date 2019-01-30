@@ -29,10 +29,6 @@ SET(RAW_UI_SOURCES
     "itb_ui_testing.c"
     )
 
-#force regeneration of the obfuscated strings header
-add_custom_target(gen_itb_obf ALL COMMAND python3 "${PROJECT_SOURCE_DIR}/itb_obfs.py" "${PROJECT_SOURCE_DIR}/itb_obfs.h" "itb_obfs_enc.h")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
 add_executable(itb ${SOURCES})
 
 add_executable(itb_ui ${RAW_UI_SOURCES})
