@@ -159,6 +159,9 @@ ITBDEF int itb_broadcast_register_callback(
 //==>quick threading wrappers<==
 ITBDEF pthread_t itb_quickthread(void *(func)(void *), void *param);
 
+//==>daemon wrappers<==
+ITBDEF int itb_daemonize(void);
+
 //==>vector<==
 //TODO fully test
 
@@ -392,6 +395,39 @@ pthread_t itb_quickthread(void *(func)(void *), void *param) {
     pthread_detach(th_id);
     return th_id;
 }
+
+//==>daemon wrappers<==
+int itb_daemonize(void) {
+    int ret;
+    if ((ret = fork()) < 0) { //>0 its good <0 its bad but we cant do anything about it
+        perror("fork()");
+        return errno;
+        //parent error
+    } else if (ret < 0) {
+        //parent success
+        exit(EXIT_SUCCESS);
+    }
+    //child
+
+    umask(0);
+
+    fclose(stdin);
+    fclose(stdout);
+    fclose(stderr);
+
+    if (setsid() == -1) {
+        perror("setsid()");
+        return errno;
+    }
+
+    if (chdir("/") == -1) {
+        perror("chdir()");
+        return errno;
+    }
+
+    return 0;
+}
+
 //==>vectors<==
 
 //typedef struct {
