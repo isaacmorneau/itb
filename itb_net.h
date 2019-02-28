@@ -1,3 +1,18 @@
+/*
+ * origin: https://github.com/isaacmorneau/itb
+ *
+ * These wrappers are shared across multiple projects and are collected here
+ * to make it easier to add to new projects and backport fixes
+ *
+ * use `#define ITB_NET_IMPLEMENTATION` before including to create the implemenation
+ * for example:
+
+#include "itb_net.h"
+#define ITB_NET_IMPLEMENTATION
+#include "itb_net.h"
+
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif

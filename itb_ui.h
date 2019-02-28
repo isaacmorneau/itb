@@ -1,3 +1,18 @@
+/*
+ * origin: https://github.com/isaacmorneau/itb
+ *
+ * These wrappers are shared across multiple projects and are collected here
+ * to make it easier to add to new projects and backport fixes
+ *
+ * use `#define ITB_UI_IMPLEMENTATION` before including to create the implemenation
+ * for example:
+
+#include "itb_ui.h"
+#define ITB_UI_IMPLEMENTATION
+#include "itb_ui.h"
+
+ */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
