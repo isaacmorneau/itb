@@ -20,11 +20,13 @@ extern "C" {
 #ifndef ITB_UI_H
 #define ITB_UI_H
 
+#include <locale.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <termios.h>
 #include <unistd.h>
+#include <wchar.h>
 
 //==>configureable defines<==
 //allow either static or extern linking
@@ -483,11 +485,23 @@ ssize_t itb_readline(uint8_t *buffer, size_t len) {
 //==>ncurses like replacement<==
 
 int itb_ui_start(itb_ui_context *ui_ctx) {
+    //only run on terminals
     if (!isatty(STDIN_FILENO)) {
         return 1;
     }
 
+    //store the original terminal settings
     if (tcgetattr(STDIN_FILENO, &ui_ctx->original)) {
+        return 1;
+    }
+
+    //use the environments locale
+    if (!setlocale(LC_ALL, "")) {
+        return 1;
+    }
+
+    //set it to multibyte
+    if (fwide(stdout, 1) <= 0) {
         return 1;
     }
 
@@ -612,7 +626,7 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     skipped = 0;
                 }
 
-                fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
+                fwprintf(stdout, L"%.*ls",width, ui_ctx->doublebuffer[0][r] + col);
                 wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
                 width = 0;
             } else {
@@ -627,7 +641,8 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                 skipped = 0;
             }
 
-            fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
+            //fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
+            fwprintf(stdout, L"%.*ls",width, ui_ctx->doublebuffer[0][r] + col);
             wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
             width = 0;
         } else {
@@ -649,9 +664,9 @@ void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col) {
     //only update if we actually need to
     if (ui_ctx->cursor[0] != row || ui_ctx->cursor[1] != col) {
         if (row == 1 && col == 1) {
-            fputs("\x1b[H", stdout);
+            fwprintf(stdout, L"\x1b[H");
         } else {
-            printf("\x1b[%ld;%ldf", row, col);
+            fwprintf(stdout, L"\x1b[%ld;%ldf", row, col);
         }
 
         //this feels overkill
@@ -688,44 +703,44 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
 
     wchar_t **buffer = ui_ctx->doublebuffer[0];
     //tl
-    buffer[row][col] = L'+';
+    buffer[row][col] = L'┌';
 
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
-        buffer[row + height - 1][col] = L'+';
+        buffer[row + height - 1][col] = L'└';
         //tr
-        buffer[row][col + width - 1] = L'+';
+        buffer[row][col + width - 1] = L'┐';
         //br
-        buffer[row + height - 1][col + width - 1] = L'+';
+        buffer[row + height - 1][col + width - 1] = L'┘';
     } else if (col + width < ui_ctx->cols) {
         // tr only
-        buffer[row][col + width - 1] = L'+';
+        buffer[row][col + width - 1] = L'┐';
     } else if (row + height < ui_ctx->rows) {
         // bl only
-        buffer[row + height][col] = L'+';
+        buffer[row + height][col] = L'└';
     }
 
     //top line can at least start
     for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
-        buffer[row][c] = L'-';
+        buffer[row][c] = L'─';
     }
 
     //bottom line may be off screen
     if (row + height < ui_ctx->rows) {
         for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
-            buffer[row + height - 1][c] = L'-';
+            buffer[row + height - 1][c] = L'─';
         }
     }
 
     //left line can at least start
     for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
-        buffer[r][col] = L'|';
+        buffer[r][col] = L'│';
     }
 
     //right line may be off screen
     if (col + width < ui_ctx->cols) { // tr only
         for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
-            buffer[r][col + width - 1] = L'|';
+            buffer[r][col + width - 1] = L'│';
         }
     }
 }

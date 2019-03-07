@@ -10,7 +10,6 @@ int main(void) {
         perror("start");
         return 1;
     }
-
     for (int i = 0; i < 1000; ++i) {
         itb_ui_box(&ctx, (i%20)+1, (i%100)+1, 10, 10);
         itb_ui_rcprintf(&ctx, (i%20)+1, (i%100)+1, L"<%d>", i);
