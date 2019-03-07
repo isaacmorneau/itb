@@ -1,6 +1,7 @@
 #include <unistd.h>
 
 #define ITB_UI_IMPLEMENTATION
+#define ITB_UI_UNICODE 0
 #include "itb_ui.h"
 
 int main(void) {
@@ -14,7 +15,7 @@ int main(void) {
 
     for (int i = 0; i < 10000; ++i) {
         itb_ui_box(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, 10, 10);
-        itb_ui_rcprintf(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, L"<%d>", i);
+        itb_ui_rcprintf(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, ITB_T("<%d>"), i);
         itb_ui_flip(&ctx);
     }
 
@@ -23,11 +24,17 @@ int main(void) {
 
     for (size_t r = 1; r < ctx.rows; ++r) {
         for (size_t c = 1; c < ctx.cols; ++c) {
+#if ITB_UI_UNICODE
             itb_ui_rcprintf(&ctx, r, c, L"Ʊ");
+#else
+            itb_ui_rcprintf(&ctx, r, c, "#");
+#endif
             itb_ui_flip(&ctx);
         }
     }
 
+#if 0
+    //this is only enabled to test hard updates
     itb_ui_clear(&ctx);
     itb_ui_flip(&ctx);
 
@@ -37,6 +44,7 @@ int main(void) {
             itb_ui_flip_force(&ctx);
         }
     }
+#endif
 
     itb_ui_show(&ctx);
     itb_ui_end(&ctx);

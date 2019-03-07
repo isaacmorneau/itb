@@ -26,7 +26,6 @@ extern "C" {
 #include <stdint.h>
 #include <termios.h>
 #include <unistd.h>
-#include <wchar.h>
 
 //==>configureable defines<==
 //allow either static or extern linking
@@ -118,6 +117,23 @@ ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 
 //==>ncurses like replacement<==
 
+//default it to use unicode
+//use ascii only with
+//#define ITB_UI_UNICODE 0
+#ifndef ITB_UI_UNICODE
+#define ITB_UI_UNICODE 1
+#endif
+
+#if ITB_UI_UNICODE
+#include <wchar.h>
+#define __ITB_TEXT(x) L##x
+#else
+#define __ITB_TEXT(x) x
+#endif
+
+//use this to wrap strings to automatically add long string L constants as needed
+#define ITB_T(x) __ITB_TEXT(x)
+
 typedef struct itb_ui_context {
     //for returning to normal terminal settings after
     struct termios original;
@@ -128,11 +144,13 @@ typedef struct itb_ui_context {
     size_t cursor[2];
     //x*y*2
     size_t buffsize;
-    //might need to increase the size for wide char later
-    //TODO Unicode support, uchar.h?
     //0 - delta buffer
     //1 - last flipped
+#if ITB_UI_UNICODE
     wchar_t **doublebuffer[2];
+#else
+    char **doublebuffer[2];
+#endif
     bool cursor_visible;
 } itb_ui_context;
 
@@ -163,10 +181,18 @@ ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t wi
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
 
 //starts at current cursor
+#if ITB_UI_UNICODE
 ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const wchar_t *fmt, ...);
+#else
+ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
+#endif
 
 //starts at row and col specified
+#if ITB_UI_UNICODE
 ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const wchar_t *fmt, ...);
+#else
+ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...);
+#endif
 
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
@@ -176,7 +202,9 @@ ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#if ITB_UI_UNICODE
 #include <wchar.h>
+#endif
 
 int itb_menu_init(itb_menu_t *menu, const char *header) {
     //to make sure that its as dynamic as possible just copy in the string
@@ -497,6 +525,7 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
         return 1;
     }
 
+#if ITB_UI_UNICODE
     //use the environments locale
     if (!setlocale(LC_ALL, "")) {
         return 1;
@@ -506,6 +535,7 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     if (fwide(stdout, 1) <= 0) {
         return 1;
     }
+#endif
 
     struct termios raw;
 
@@ -545,9 +575,19 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     //the initialization is for laying out the memory as follows
     //[page 0 rows][page 1 rows][page 0 cols][page 1 cols]
 
-    const size_t row_size  = ui_ctx->rows * sizeof(wchar_t **);
-    const size_t col_size  = ui_ctx->cols * sizeof(wchar_t);
-    const size_t data_size = ui_ctx->rows * ui_ctx->cols * sizeof(wchar_t);
+    size_t row_size;
+    size_t col_size;
+    size_t data_size;
+
+#if ITB_UI_UNICODE
+    row_size  = ui_ctx->rows * sizeof(wchar_t **);
+    col_size  = ui_ctx->cols * sizeof(wchar_t);
+    data_size = ui_ctx->rows * ui_ctx->cols * sizeof(wchar_t);
+#else
+    row_size = ui_ctx->rows * sizeof(char **);
+    col_size = ui_ctx->cols * sizeof(char);
+    data_size = ui_ctx->rows * ui_ctx->cols * sizeof(char);
+#endif
 
     uint8_t *temp = malloc((row_size + data_size) * 2);
 
@@ -556,21 +596,40 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     uint8_t *data1_offset = (temp + row_size * 2);
     uint8_t *data2_offset = (temp + row_size * 2 + data_size);
 
+#if ITB_UI_UNICODE
     ui_ctx->doublebuffer[0] = (wchar_t **)row1_offset;
     ui_ctx->doublebuffer[1] = (wchar_t **)row2_offset;
+#else
+    ui_ctx->doublebuffer[0] = (char **)row1_offset;
+    ui_ctx->doublebuffer[1] = (char **)row2_offset;
+#endif
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         //ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
+#if ITB_UI_UNICODE
         ui_ctx->doublebuffer[0][r] = (wchar_t *)(data1_offset + (r * col_size));
         ui_ctx->doublebuffer[1][r] = (wchar_t *)(data2_offset + (r * col_size));
+#else
+        ui_ctx->doublebuffer[0][r] = (char *)(data1_offset + (r * col_size));
+        ui_ctx->doublebuffer[1][r] = (char *)(data2_offset + (r * col_size));
+#endif
     }
 
+#if ITB_UI_UNICODE
     //you may think? "oh i know ill use the datasize"
     //no wmemset takes character counts not data size
     wmemset((wchar_t *)data1_offset, L' ', ui_ctx->rows * ui_ctx->cols * 2);
+#else
+    memset(data1_offset, ' ', ui_ctx->rows * ui_ctx->cols * 2);
+#endif
 
     //clear everything and move to the top left
+#if ITB_UI_UNICODE
+    fwprintf(stdout, L"\x1b[2J\x1b[H");
+#else
     fputs("\x1b[2J\x1b[H", stdout);
+#endif
+
     fflush(stdout);
 
     ui_ctx->cursor[0] = 0; //x
@@ -617,7 +676,11 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         size_t width = 0;
 
         for (size_t c = 0; c < ui_ctx->cols; ++c) {
+#if ITB_UI_UNICODE
             if (wcsncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
+#else
+            if (strncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
+#endif
                 if (!width) {
                     col = c;
                 }
@@ -629,9 +692,15 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     skipped = 0;
                 }
 
+#if ITB_UI_UNICODE
                 fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
                 //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
                 wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+#else
+                fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
+                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
+                memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+#endif
                 width = 0;
             } else {
                 skipped = 1;
@@ -645,9 +714,15 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                 skipped = 0;
             }
 
-            //fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
+#if ITB_UI_UNICODE
             fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
+            //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
             wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+#else
+            fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
+            //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
+            memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+#endif
             width = 0;
         } else {
             skipped = 1;
@@ -674,8 +749,12 @@ void itb_ui_flip_force(itb_ui_context *ui_ctx) {
     itb_ui_hide(ui_ctx);
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        itb_ui_mv(ui_ctx, r+1, 1);
+        itb_ui_mv(ui_ctx, r + 1, 1);
+#if ITB_UI_UNICODE
         fwprintf(stdout, L"%.*ls\n", ui_ctx->cols, ui_ctx->doublebuffer[0][r]);
+#else
+        fwrite(ui_ctx->doublebuffer[0][r], 1, ui_ctx->cols, stdout);
+#endif
     }
 
     //restore previous state
@@ -691,9 +770,17 @@ void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col) {
     //only update if we actually need to
     if (ui_ctx->cursor[0] != row || ui_ctx->cursor[1] != col) {
         if (row == 1 && col == 1) {
+#if ITB_UI_UNICODE
             fwprintf(stdout, L"\x1b[H");
+#else
+            fputs("\x1b[H", stdout);
+#endif
         } else {
+#if ITB_UI_UNICODE
             fwprintf(stdout, L"\x1b[%ld;%ldf", row, col);
+#else
+            fprintf(stdout, "\x1b[%ld;%ldf", row, col);
+#endif
         }
 
         //this feels overkill
@@ -728,70 +815,132 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     --row;
     --col;
 
+#if ITB_UI_UNICODE
     wchar_t **buffer = ui_ctx->doublebuffer[0];
+#else
+    char **buffer = ui_ctx->doublebuffer[0];
+#endif
+
     //tl
+#if ITB_UI_UNICODE
     buffer[row][col] = L'┌';
+#else
+    buffer[row][col] = '+';
+#endif
 
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
+#if ITB_UI_UNICODE
         buffer[row + height - 1][col] = L'└';
         //tr
         buffer[row][col + width - 1] = L'┐';
         //br
         buffer[row + height - 1][col + width - 1] = L'┘';
+#else
+        buffer[row + height - 1][col] = '+';
+        //tr
+        buffer[row][col + width - 1] = '+';
+        //br
+        buffer[row + height - 1][col + width - 1] = '+';
+#endif
     } else if (col + width < ui_ctx->cols) {
         // tr only
+#if ITB_UI_UNICODE
         buffer[row][col + width - 1] = L'┐';
+#else
+        buffer[row][col + width - 1] = '+';
+#endif
     } else if (row + height < ui_ctx->rows) {
         // bl only
+#if ITB_UI_UNICODE
         buffer[row + height][col] = L'└';
+#else
+        buffer[row + height][col] = '+';
+#endif
     }
 
     //top line can at least start
     for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
+#if ITB_UI_UNICODE
         buffer[row][c] = L'─';
+#else
+        buffer[row][c] = '-';
+#endif
     }
 
     //bottom line may be off screen
     if (row + height < ui_ctx->rows) {
         for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
+#if ITB_UI_UNICODE
             buffer[row + height - 1][c] = L'─';
+#else
+            buffer[row + height - 1][c] = '-';
+#endif
         }
     }
 
     //left line can at least start
     for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
+#if ITB_UI_UNICODE
         buffer[r][col] = L'│';
+#else
+        buffer[r][col] = '|';
+#endif
     }
 
     //right line may be off screen
     if (col + width < ui_ctx->cols) { // tr only
         for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
+#if ITB_UI_UNICODE
             buffer[r][col + width - 1] = L'│';
+#else
+            buffer[r][col + width - 1] = '|';
+#endif
         }
     }
 }
 
 void itb_ui_clear(itb_ui_context *ui_ctx) {
+#if ITB_UI_UNICODE
     wmemset(ui_ctx->doublebuffer[0][0], L' ', ui_ctx->cols * ui_ctx->rows);
+#else
+    memset(ui_ctx->doublebuffer[0][0], ' ', ui_ctx->cols * ui_ctx->rows);
+#endif
 }
 
+#if ITB_UI_UNICODE
 int itb_ui_printf(itb_ui_context *ui_ctx, const wchar_t *fmt, ...) {
+#else
+int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
+#endif
     va_list args;
     int ret;
     va_start(args, fmt);
+#if ITB_UI_UNICODE
     ret = vswprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
         ui_ctx->cols - ui_ctx->cursor[1], fmt, args);
+#else
+    ret = vsnprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
+        ui_ctx->cols - ui_ctx->cursor[1], fmt, args);
+#endif
     va_end(args);
     return ret;
 }
 
+#if ITB_UI_UNICODE
 int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const wchar_t *fmt, ...) {
+#else
+int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...) {
+#endif
     if (row && row <= ui_ctx->rows && col && col <= ui_ctx->cols) {
         va_list args;
         int ret;
         va_start(args, fmt);
+#if ITB_UI_UNICODE
         ret = vswprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
+#else
+        ret = vsnprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
+#endif
         va_end(args);
         return ret;
     } else {
