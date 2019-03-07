@@ -16,6 +16,12 @@ int main(void) {
         itb_ui_rcprintf(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, L"<%d>", i);
         itb_ui_flip(&ctx);
     }
+    for (int r = 1; r < ctx.rows; ++r) {
+        for (int c = 1; c < ctx.cols; ++c) {
+            itb_ui_rcprintf(&ctx, r, c, L"Ʊ");
+            itb_ui_flip(&ctx);
+        }
+    }
 
     itb_ui_end(&ctx);
     return 0;
