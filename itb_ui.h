@@ -143,8 +143,10 @@ ITBDEF int itb_ui_start(itb_ui_context *ui_ctx);
 //must be called last
 ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 
-//render the scene
+//render the scene, fast and prefered
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
+//force rerender it all, slow and should be avoided
+ITBDEF void itb_ui_flip_force(itb_ui_context *ui_ctx);
 
 //move the cursor to the pos
 ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col);
@@ -598,6 +600,7 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
 }
 
 void itb_ui_flip(itb_ui_context *ui_ctx) {
+    //TODO record the last even so updates dont happen at all when nothings changed
     size_t cursor[2];
 
     bool isvisibile = ui_ctx->cursor_visible;
@@ -626,7 +629,8 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                     skipped = 0;
                 }
 
-                fwprintf(stdout, L"%.*ls",width, ui_ctx->doublebuffer[0][r] + col);
+                fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
+                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
                 wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
                 width = 0;
             } else {
@@ -642,7 +646,7 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
             }
 
             //fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
-            fwprintf(stdout, L"%.*ls",width, ui_ctx->doublebuffer[0][r] + col);
+            fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
             wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
             width = 0;
         } else {
@@ -657,6 +661,29 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         itb_ui_show(ui_ctx);
     }
 
+    fflush(stdout);
+}
+
+void itb_ui_flip_force(itb_ui_context *ui_ctx) {
+    size_t cursor[2];
+    bool isvisibile = ui_ctx->cursor_visible;
+    cursor[0]       = ui_ctx->cursor[0];
+    cursor[1]       = ui_ctx->cursor[1];
+
+    //move top left
+    itb_ui_hide(ui_ctx);
+
+    for (size_t r = 0; r < ui_ctx->rows; ++r) {
+        itb_ui_mv(ui_ctx, r+1, 1);
+        fwprintf(stdout, L"%.*ls\n", ui_ctx->cols, ui_ctx->doublebuffer[0][r]);
+    }
+
+    //restore previous state
+    itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
+
+    if (isvisibile) {
+        itb_ui_show(ui_ctx);
+    }
     fflush(stdout);
 }
 
