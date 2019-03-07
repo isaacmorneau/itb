@@ -533,26 +533,30 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     const size_t col_size  = ui_ctx->cols * sizeof(wchar_t);
     const size_t data_size = ui_ctx->rows * ui_ctx->cols * sizeof(wchar_t);
 
-    wchar_t *temp = malloc((row_size + data_size) * 2);
+    uint8_t *temp = malloc((row_size + data_size) * 2);
 
-    wchar_t *row1_offset  = temp;
-    wchar_t *row2_offset  = temp + row_size;
-    wchar_t *data1_offset = temp + row_size * 2;
-    wchar_t *data2_offset = temp + row_size * 2 + data_size;
+    uint8_t *row1_offset  = (temp);
+    uint8_t *row2_offset  = (temp + row_size);
+    uint8_t *data1_offset = (temp + row_size * 2);
+    uint8_t *data2_offset = (temp + row_size * 2 + data_size);
 
     ui_ctx->doublebuffer[0] = (wchar_t **)row1_offset;
     ui_ctx->doublebuffer[1] = (wchar_t **)row2_offset;
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         //ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
-        ui_ctx->doublebuffer[0][r] = data1_offset + (r * col_size);
-        ui_ctx->doublebuffer[1][r] = data2_offset + (r * col_size);
+        ui_ctx->doublebuffer[0][r] = (wchar_t *)(data1_offset + (r * col_size));
+        ui_ctx->doublebuffer[1][r] = (wchar_t *)(data2_offset + (r * col_size));
     }
-    wmemset(data1_offset, L' ', data_size * 2);
+
+    //you may think? "oh i know ill use the datasize"
+    //no wmemset takes character counts not data size
+    wmemset((wchar_t *)data1_offset, L' ', ui_ctx->rows * ui_ctx->cols * 2);
 
     //clear everything and move to the top left
     fputs("\x1b[2J\x1b[H", stdout);
     fflush(stdout);
+
     ui_ctx->cursor[0] = 0; //x
     ui_ctx->cursor[1] = 0; //y
 
@@ -581,9 +585,11 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
 
 void itb_ui_flip(itb_ui_context *ui_ctx) {
     size_t cursor[2];
+
     bool isvisibile = ui_ctx->cursor_visible;
     cursor[0]       = ui_ctx->cursor[0];
     cursor[1]       = ui_ctx->cursor[1];
+
     //move top left
     itb_ui_mv(ui_ctx, 1, 1);
     itb_ui_hide(ui_ctx);
@@ -592,17 +598,20 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         size_t col   = 0;
         size_t width = 0;
+
         for (size_t c = 0; c < ui_ctx->cols; ++c) {
-            if (wcsncmp(ui_ctx->doublebuffer[0][r]+c, ui_ctx->doublebuffer[1][r]+c, 1)) {
+            if (wcsncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
                 if (!width) {
                     col = c;
                 }
+
                 ++width;
             } else if (width) {
                 if (skipped) {
                     itb_ui_mv(ui_ctx, r, col);
                     skipped = 0;
                 }
+
                 fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
                 wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
                 width = 0;
@@ -610,12 +619,14 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
                 skipped = 1;
             }
         }
+
         //catch EOL deltas
         if (width) {
             if (skipped) {
                 itb_ui_mv(ui_ctx, r, col);
                 skipped = 0;
             }
+
             fwrite(ui_ctx->doublebuffer[0][r] + col, sizeof(wchar_t), width, stdout);
             wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
             width = 0;
@@ -626,9 +637,11 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
 
     //restore previous state
     itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
+
     if (isvisibile) {
         itb_ui_show(ui_ctx);
     }
+
     fflush(stdout);
 }
 
@@ -640,8 +653,10 @@ void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col) {
         } else {
             printf("\x1b[%ld;%ldf", row, col);
         }
+
         //this feels overkill
         fflush(stdout);
+
         ui_ctx->cursor[0] = row;
         ui_ctx->cursor[1] = col;
     } //else no change
@@ -666,6 +681,7 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     if (row > ui_ctx->rows || col > ui_ctx->cols || !row || !col || width < 2 || height < 2) {
         return;
     }
+
     //1 based to 0 based
     --row;
     --col;
@@ -681,9 +697,11 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
         buffer[row][col + width - 1] = L'+';
         //br
         buffer[row + height - 1][col + width - 1] = L'+';
-    } else if (col + width < ui_ctx->cols) { // tr only
+    } else if (col + width < ui_ctx->cols) {
+        // tr only
         buffer[row][col + width - 1] = L'+';
-    } else if (row + height < ui_ctx->rows) { // bl only
+    } else if (row + height < ui_ctx->rows) {
+        // bl only
         buffer[row + height][col] = L'+';
     }
 
