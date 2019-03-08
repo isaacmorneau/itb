@@ -61,6 +61,9 @@ typedef struct itb_ui_context {
     size_t cols;
     //current row, current col
     size_t cursor[2];
+    //min row, min col, max row, max col
+    //set by itb_ui_dirty_point
+    size_t dirty[4];
     //x*y*2
     size_t buffsize;
     //0 - delta buffer
@@ -81,6 +84,7 @@ ITBDEF int itb_ui_start(itb_ui_context *ui_ctx);
 ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 
 //render the scene, fast and prefered
+//if manual updates were applied to the buffers make sure to mark them with itb_dirty_box
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
 //force rerender it all, slow and should be avoided
 ITBDEF void itb_ui_flip_force(itb_ui_context *ui_ctx);
@@ -95,6 +99,11 @@ ITBDEF void itb_ui_show(itb_ui_context *ui_ctx);
 
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
+
+//mark a coord as needing a redraw
+//if a box was drawn for example it would be called twice,
+//once for top left once for bottom right
+ITBDEF void itb_ui_dirty_point(itb_ui_context *ui_ctx, size_t row, size_t col);
 
 //starts at the top left
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
@@ -269,6 +278,24 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
     return 0;
 }
 
+void itb_ui_dirty_point(itb_ui_context *ui_ctx, size_t row, size_t col) {
+    if (row > 0 && ui_ctx->dirty[0] > row) {
+        ui_ctx->dirty[0] = row;
+    }
+
+    if (col > 0 && ui_ctx->dirty[1] > col) {
+        ui_ctx->dirty[1] = col;
+    }
+
+    if (row <= ui_ctx->rows && ui_ctx->dirty[2] < row) {
+        ui_ctx->dirty[2] = row;
+    }
+
+    if (col <= ui_ctx->cols && ui_ctx->dirty[3] < col) {
+        ui_ctx->dirty[3] = col;
+    }
+}
+
 void itb_ui_flip(itb_ui_context *ui_ctx) {
     //TODO record the last even so updates dont happen at all when nothings changed
     size_t cursor[2];
@@ -283,21 +310,45 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
 
     bool skipped = 1;
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        size_t col   = 0;
-        size_t width = 0;
-
-        for (size_t c = 0; c < ui_ctx->cols; ++c) {
+        for (size_t col = 0, width = 0, c = 0; c < ui_ctx->cols; ++c) {
 #if ITB_UI_UNICODE
             if (wcsncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
 #else
             if (strncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
 #endif
+                //it is different
+
+                //if its the start of the delta mark it
                 if (!width) {
                     col = c;
                 }
 
                 ++width;
             } else if (width) {
+                //it was different
+
+                if (skipped) {
+                    itb_ui_mv(ui_ctx, r, col);
+                    skipped = 0;
+                }
+
+#if ITB_UI_UNICODE
+                fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
+                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
+                wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+#else
+                fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
+                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
+                memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+#endif
+                width = 0;
+            } else {
+                //it is not different
+                skipped = 1;
+            }
+
+            //catch EOL deltas
+            if (width) {
                 if (skipped) {
                     itb_ui_mv(ui_ctx, r, col);
                     skipped = 0;
@@ -316,27 +367,6 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
             } else {
                 skipped = 1;
             }
-        }
-
-        //catch EOL deltas
-        if (width) {
-            if (skipped) {
-                itb_ui_mv(ui_ctx, r, col);
-                skipped = 0;
-            }
-
-#if ITB_UI_UNICODE
-            fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
-            //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-            wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
-#else
-            fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
-            //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-            memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
-#endif
-            width = 0;
-        } else {
-            skipped = 1;
         }
     }
 

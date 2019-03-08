@@ -22,8 +22,8 @@ int main(void) {
     itb_ui_clear(&ctx);
     itb_ui_flip(&ctx);
 
-    for (size_t r = 1; r < ctx.rows; ++r) {
-        for (size_t c = 1; c < ctx.cols; ++c) {
+    for (size_t r = 1; r <= ctx.rows; ++r) {
+        for (size_t c = 1; c <= ctx.cols; ++c) {
 #if ITB_UI_UNICODE
             itb_ui_rcprintf(&ctx, r, c, L"Ʊ");
 #else
@@ -32,6 +32,16 @@ int main(void) {
             itb_ui_flip(&ctx);
         }
     }
+    //ensure mov works as expected
+    itb_ui_clear(&ctx);
+
+    itb_ui_box(&ctx, 5, 5, ctx.cols - 10, ctx.rows - 10);
+
+    itb_ui_rcprintf(
+        &ctx, ctx.rows / 2, ctx.cols / 2, ITB_T("+ marks r:%lu c:%lu"), ctx.rows / 2, ctx.cols / 2);
+    itb_ui_rcprintf(&ctx, 3, 3, ITB_T("+ marks r:%lu c:%lu"), 3, 3);
+
+    itb_ui_flip(&ctx);
 
 #if 0
     //this is only enabled to test hard updates
