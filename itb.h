@@ -296,7 +296,6 @@ ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
