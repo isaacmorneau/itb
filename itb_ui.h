@@ -63,7 +63,7 @@ typedef struct itb_ui_context {
     size_t cursor[2];
     //min row, min col, max row, max col
     //set by itb_ui_dirty_point
-    size_t dirty[4];
+    ssize_t dirty[4];
     //x*y*2
     size_t buffsize;
     //0 - delta buffer
@@ -289,24 +289,38 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
 }
 
 void itb_ui_dirty_point(itb_ui_context *ui_ctx, size_t row, size_t col) {
-    if (row > 0 && ui_ctx->dirty[0] > row) {
+    if (row > 0 && (ui_ctx->dirty[0] == -1 || (size_t)ui_ctx->dirty[0] > row)) {
         ui_ctx->dirty[0] = row;
     }
 
-    if (col > 0 && ui_ctx->dirty[1] > col) {
+    if (col > 0 && (ui_ctx->dirty[1] == -1 || (size_t)ui_ctx->dirty[1] > col)) {
         ui_ctx->dirty[1] = col;
     }
 
-    if (row <= ui_ctx->rows && ui_ctx->dirty[2] < row) {
+    if (row <= ui_ctx->rows && (ui_ctx->dirty[2] == -1 || (size_t)ui_ctx->dirty[2] < row)) {
         ui_ctx->dirty[2] = row;
     }
 
-    if (col <= ui_ctx->cols && ui_ctx->dirty[3] < col) {
+    if (col <= ui_ctx->cols && (ui_ctx->dirty[3] == -1 || (size_t)ui_ctx->dirty[3] < col)) {
         ui_ctx->dirty[3] = col;
     }
 }
 
 void itb_ui_flip(itb_ui_context *ui_ctx) {
+    if (ui_ctx->dirty[0] == -1 && ui_ctx->dirty[1] == -1) {
+        //there were no changes
+        return;
+    } else {
+        //ensure that if any rows were only partially set they are corrected
+        if (ui_ctx->dirty[0] < 0)
+            ui_ctx->dirty[0] = 0;
+        if (ui_ctx->dirty[1] < 0)
+            ui_ctx->dirty[1] = 0;
+        if (ui_ctx->dirty[2] < 0 || (size_t)ui_ctx->dirty[2] > ui_ctx->rows)
+            ui_ctx->dirty[2] = ui_ctx->rows;
+        if (ui_ctx->dirty[3] < 0 || (size_t)ui_ctx->dirty[3] > ui_ctx->cols)
+            ui_ctx->dirty[3] = ui_ctx->cols;
+    }
     //TODO record the last even so updates dont happen at all when nothings changed
     size_t cursor[2];
 
@@ -321,11 +335,11 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         itb_ui_hide(ui_ctx);
     }
 
-    for (size_t r = 0; r < ui_ctx->rows; ++r) {
+    for (size_t r = (size_t)ui_ctx->dirty[0]; r < (size_t)ui_ctx->dirty[2]; ++r) {
         size_t col   = 0;
         size_t width = 0;
 
-        for (size_t c = 0; c < ui_ctx->cols; ++c) {
+        for (size_t c = (size_t)ui_ctx->dirty[1]; c < (size_t)ui_ctx->dirty[3]; ++c) {
 #if ITB_UI_UNICODE
             if (wcsncmp(ui_ctx->double_buff[0][r] + c, ui_ctx->double_buff[1][r] + c, 1)) {
 #else
@@ -386,6 +400,12 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     }
 
     fflush(stdout);
+
+    //reset bounds
+    ui_ctx->dirty[0] = 0;
+    ui_ctx->dirty[1] = 0;
+    ui_ctx->dirty[2] = 0;
+    ui_ctx->dirty[3] = 0;
 }
 
 void itb_ui_flip_force(itb_ui_context *ui_ctx) {
