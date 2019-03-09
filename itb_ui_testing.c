@@ -14,7 +14,7 @@ int main(void) {
         return 1;
     }
 
-    wprintf(ITB_COLOR(ITB_GREEN, ITB_BLACK));
+    //printf(ITB_COLOR(ITB_GREEN, ITB_BLACK));
 
     itb_ui_hide(&ctx);
 
@@ -50,6 +50,6 @@ int main(void) {
 
     itb_ui_show(&ctx);
     itb_ui_end(&ctx);
-    printf(ITB_RESET);
+    //printf(ITB_RESET);
     return 0;
 }
