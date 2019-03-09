@@ -208,8 +208,6 @@ ITBDEF void itb_uri_print(itb_uri_t *uri);
 ITBDEF void itb_uri_close(itb_uri_t *uri);
 
 //==>basic menu<==
-
-//==>basic nice menus<==
 typedef enum itb_menu_item_type_t {
     LABEL, //text only
     CALLBACK, //run a function on press
