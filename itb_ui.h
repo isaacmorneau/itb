@@ -483,6 +483,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     buffer[row][col] = '+';
 #endif
 
+    itb_ui_dirty_point(ui_ctx, row, col);
+    itb_ui_dirty_point(ui_ctx, row + height, col + width);
+
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
 #if ITB_UI_UNICODE
@@ -508,9 +511,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     } else if (row + height < ui_ctx->rows) {
         // bl only
 #if ITB_UI_UNICODE
-        buffer[row + height][col] = L'└';
+        buffer[row + height - 1][col] = L'└';
 #else
-        buffer[row + height][col] = '+';
+        buffer[row + height - 1][col] = '+';
 #endif
     }
 
@@ -581,13 +584,15 @@ int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
         if ((size_t)ret > ui_ctx->cols - ui_ctx->cursor[1] + 1) {
             ret = ui_ctx->cols - ui_ctx->cursor[1] + 1;
         }
+        itb_ui_dirty_point(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]);
+        itb_ui_dirty_point(ui_ctx, ui_ctx->cursor[0], ret);
 
 #if ITB_UI_UNICODE
         wmemcpy(ui_ctx->double_buff[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1], ui_ctx->render_line,
-            ret + wcslen(fmt));
+            ret);
 #else
         memcpy(ui_ctx->double_buff[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1], ui_ctx->render_line,
-            ret + strlen(fmt));
+            ret);
 #endif
     }
     va_end(args);
@@ -613,6 +618,9 @@ int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *
             if ((size_t)ret > ui_ctx->cols - col + 1) {
                 ret = ui_ctx->cols - col + 1;
             }
+
+            itb_ui_dirty_point(ui_ctx, row, col);
+            itb_ui_dirty_point(ui_ctx, row, ret);
 
 #if ITB_UI_UNICODE
             wmemcpy(ui_ctx->double_buff[0][row] + col, ui_ctx->render_line, ret);
