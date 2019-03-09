@@ -21,11 +21,15 @@ extern "C" {
 #define ITB_NET_H
 
 //==>configureable defines<==
-//allow either static or extern linking
+//allow static, extern, or no specifier linking
+#ifndef ITBDEF
 #ifdef ITB_STATIC
 #define ITBDEF static
-#else
+#elif ITB_EXTERN
 #define ITBDEF extern
+#else
+#define ITBDEF
+#endif
 #endif
 
 #include <errno.h>

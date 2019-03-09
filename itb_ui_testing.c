@@ -1,7 +1,7 @@
 #include <unistd.h>
 
 #define ITB_UI_IMPLEMENTATION
-//#define ITB_UI_UNICODE 0
+#define ITB_UI_UNICODE 0
 #include "itb_ui.h"
 
 int main(void) {

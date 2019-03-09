@@ -27,21 +27,30 @@ extern "C" {
 #include <unistd.h>
 
 //==>configureable defines<==
-//allow either static or extern linking
+//allow static, extern, or no specifier linking
 #ifdef ITB_STATIC
 #define ITBDEF static
-#else
+#elif ITB_EXTERN
 #define ITBDEF extern
+#else
+#define ITBDEF
 #endif
-
-//==>ncurses like replacement<==
-
 //default it to use unicode
 //use ascii only with
 //#define ITB_UI_UNICODE 0
 #ifndef ITB_UI_UNICODE
 #define ITB_UI_UNICODE 1
 #endif
+
+//==>ncurses like replacement<==
+
+#define ITB_ANSI_COLOR_RED "\x1b[31m"
+#define ITB_ANSI_COLOR_GREEN "\x1b[32m"
+#define ITB_ANSI_COLOR_YELLOW "\x1b[33m"
+#define ITB_ANSI_COLOR_BLUE "\x1b[34m"
+#define ITB_ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ITB_ANSI_COLOR_CYAN "\x1b[36m"
+#define ITB_ANSI_COLOR_RESET "\x1b[0m"
 
 #if ITB_UI_UNICODE
 #include <wchar.h>
