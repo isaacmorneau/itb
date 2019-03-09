@@ -32,29 +32,14 @@ int main(void) {
             itb_ui_flip(&ctx);
         }
     }
-    //ensure mov works as expected
-    itb_ui_clear(&ctx);
 
-    itb_ui_box(&ctx, 5, 5, ctx.cols - 10, ctx.rows - 10);
-
-    itb_ui_rcprintf(
-        &ctx, ctx.rows / 2, ctx.cols / 2, ITB_T("+ marks r:%lu c:%lu"), ctx.rows / 2, ctx.cols / 2);
-    itb_ui_rcprintf(&ctx, 3, 3, ITB_T("+ marks r:%lu c:%lu"), 3, 3);
-
-    itb_ui_flip(&ctx);
-
-#if 0
-    //this is only enabled to test hard updates
-    itb_ui_clear(&ctx);
-    itb_ui_flip(&ctx);
-
-    for (size_t r = 1; r < ctx.rows; ++r) {
-        for (size_t c = 1; c < ctx.cols; ++c) {
-            itb_ui_rcprintf(&ctx, r, c, L"Ʊ");
-            itb_ui_flip_force(&ctx);
+    for (size_t r = 1; r <= ctx.rows; ++r) {
+        for (size_t c = 1; c <= ctx.cols; c += 2) {
+            itb_ui_rcprintf(&ctx, r, c, ITB_T("|"));
         }
     }
-#endif
+
+    itb_ui_flip(&ctx);
 
     itb_ui_show(&ctx);
     itb_ui_end(&ctx);

@@ -69,9 +69,13 @@ typedef struct itb_ui_context {
     //0 - delta buffer
     //1 - last flipped
 #if ITB_UI_UNICODE
-    wchar_t **doublebuffer[2];
+    wchar_t **double_buff[2];
+    //a temp buff for printf
+    wchar_t *render_line;
 #else
-    char **doublebuffer[2];
+    char **double_buff[2];
+    //a temp buff for printf
+    char *render_line;
 #endif
     bool cursor_visible;
 } itb_ui_context;
@@ -198,40 +202,46 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
     size_t row_size;
     size_t col_size;
     size_t data_size;
+    size_t line_size;
 
 #if ITB_UI_UNICODE
     row_size  = ui_ctx->rows * sizeof(wchar_t **);
     col_size  = ui_ctx->cols * sizeof(wchar_t);
     data_size = ui_ctx->rows * ui_ctx->cols * sizeof(wchar_t);
+    line_size = (ui_ctx->cols + 1) * sizeof(wchar_t);
 #else
     row_size = ui_ctx->rows * sizeof(char **);
     col_size = ui_ctx->cols * sizeof(char);
     data_size = ui_ctx->rows * ui_ctx->cols * sizeof(char);
+    line_size = (ui_ctx->cols + 1) * sizeof(char);
 #endif
 
-    uint8_t *temp = malloc((row_size + data_size) * 2);
+    uint8_t *temp = malloc((row_size + data_size) * 2 + line_size);
 
-    uint8_t *row1_offset  = (temp);
-    uint8_t *row2_offset  = (temp + row_size);
-    uint8_t *data1_offset = (temp + row_size * 2);
-    uint8_t *data2_offset = (temp + row_size * 2 + data_size);
+    uint8_t *row1_offset   = (temp);
+    uint8_t *row2_offset   = (temp + row_size);
+    uint8_t *data1_offset  = (temp + row_size * 2);
+    uint8_t *data2_offset  = (temp + row_size * 2 + data_size);
+    uint8_t *render_offset = (temp + (row_size + data_size) * 2);
 
 #if ITB_UI_UNICODE
-    ui_ctx->doublebuffer[0] = (wchar_t **)row1_offset;
-    ui_ctx->doublebuffer[1] = (wchar_t **)row2_offset;
+    ui_ctx->double_buff[0] = (wchar_t **)row1_offset;
+    ui_ctx->double_buff[1] = (wchar_t **)row2_offset;
+    ui_ctx->render_line    = (wchar_t *)render_offset;
 #else
-    ui_ctx->doublebuffer[0] = (char **)row1_offset;
-    ui_ctx->doublebuffer[1] = (char **)row2_offset;
+    ui_ctx->double_buff[0] = (char **)row1_offset;
+    ui_ctx->double_buff[1] = (char **)row2_offset;
+    ui_ctx->render_line = (char *)render_offset;
 #endif
 
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        //ui_ctx->doublebuffer[0][r] = malloc(ui_ctx->cols * 2);
+        //ui_ctx->double_buff[0][r] = malloc(ui_ctx->cols * 2);
 #if ITB_UI_UNICODE
-        ui_ctx->doublebuffer[0][r] = (wchar_t *)(data1_offset + (r * col_size));
-        ui_ctx->doublebuffer[1][r] = (wchar_t *)(data2_offset + (r * col_size));
+        ui_ctx->double_buff[0][r] = (wchar_t *)(data1_offset + (r * col_size));
+        ui_ctx->double_buff[1][r] = (wchar_t *)(data2_offset + (r * col_size));
 #else
-        ui_ctx->doublebuffer[0][r] = (char *)(data1_offset + (r * col_size));
-        ui_ctx->doublebuffer[1][r] = (char *)(data2_offset + (r * col_size));
+        ui_ctx->double_buff[0][r] = (char *)(data1_offset + (r * col_size));
+        ui_ctx->double_buff[1][r] = (char *)(data2_offset + (r * col_size));
 #endif
     }
 
@@ -269,11 +279,11 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
         return 1;
     }
 
-    for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        //free(ui_ctx->doublebuffer[0][r]);
-    }
+    //for (size_t r = 0; r < ui_ctx->rows; ++r) {
+    //    free(ui_ctx->double_buff[0][r]);
+    //}
 
-    free(ui_ctx->doublebuffer[0]);
+    free(ui_ctx->double_buff[0]);
 
     return 0;
 }
@@ -306,15 +316,20 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
 
     //move top left
     itb_ui_mv(ui_ctx, 1, 1);
-    itb_ui_hide(ui_ctx);
 
-    bool skipped = 1;
+    if (isvisibile) {
+        itb_ui_hide(ui_ctx);
+    }
+
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        for (size_t col = 0, width = 0, c = 0; c < ui_ctx->cols; ++c) {
+        size_t col   = 0;
+        size_t width = 0;
+
+        for (size_t c = 0; c < ui_ctx->cols; ++c) {
 #if ITB_UI_UNICODE
-            if (wcsncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
+            if (wcsncmp(ui_ctx->double_buff[0][r] + c, ui_ctx->double_buff[1][r] + c, 1)) {
 #else
-            if (strncmp(ui_ctx->doublebuffer[0][r] + c, ui_ctx->doublebuffer[1][r] + c, 1)) {
+            if (strncmp(ui_ctx->double_buff[0][r] + c, ui_ctx->double_buff[1][r] + c, 1)) {
 #endif
                 //it is different
 
@@ -327,46 +342,39 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
             } else if (width) {
                 //it was different
 
-                if (skipped) {
-                    itb_ui_mv(ui_ctx, r, col);
-                    skipped = 0;
-                }
+                itb_ui_mv(ui_ctx, r, col);
 
+                int ret;
+
+                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
 #if ITB_UI_UNICODE
-                fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
-                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-                wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+                ret = fwprintf(stdout, L"%.*ls", width, ui_ctx->double_buff[0][r] + col);
+                if (ret > 0) {
+                    wmemcpy(ui_ctx->double_buff[1][r] + col, ui_ctx->double_buff[0][r] + col, ret);
+                }
 #else
-                fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
-                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-                memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+                ret = fwrite(ui_ctx->double_buff[0][r] + col, 1, width, stdout);
+                if (ret > 0) {
+                    memcpy(ui_ctx->double_buff[1][r] + col, ui_ctx->double_buff[0][r] + col, ret);
+                }
 #endif
                 width = 0;
-            } else {
-                //it is not different
-                skipped = 1;
             }
+        }
+        //catch EOL deltas
+        if (width) {
+            itb_ui_mv(ui_ctx, r, col);
 
-            //catch EOL deltas
-            if (width) {
-                if (skipped) {
-                    itb_ui_mv(ui_ctx, r, col);
-                    skipped = 0;
-                }
+            //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
 
+            //while i could check the affected colmns in this case the double buffer is pre sanitized and i dont need to
 #if ITB_UI_UNICODE
-                fwprintf(stdout, L"%.*ls", width, ui_ctx->doublebuffer[0][r] + col);
-                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-                wmemcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+            fwprintf(stdout, L"%.*ls", width, ui_ctx->double_buff[0][r] + col);
+            wmemcpy(ui_ctx->double_buff[1][r] + col, ui_ctx->double_buff[0][r] + col, width);
 #else
-                fwrite(ui_ctx->doublebuffer[0][r] + col, 1, width, stdout);
-                //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-                memcpy(ui_ctx->doublebuffer[1][r] + col, ui_ctx->doublebuffer[0][r] + col, width);
+            fwrite(ui_ctx->double_buff[0][r] + col, 1, width, stdout);
+            memcpy(ui_ctx->double_buff[1][r] + col, ui_ctx->double_buff[0][r] + col, width);
 #endif
-                width = 0;
-            } else {
-                skipped = 1;
-            }
         }
     }
 
@@ -392,11 +400,17 @@ void itb_ui_flip_force(itb_ui_context *ui_ctx) {
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         itb_ui_mv(ui_ctx, r + 1, 1);
 #if ITB_UI_UNICODE
-        fwprintf(stdout, L"%.*ls\n", ui_ctx->cols, ui_ctx->doublebuffer[0][r]);
+        fwprintf(stdout, L"%.*ls", ui_ctx->cols, ui_ctx->double_buff[0][r]);
 #else
-        fwrite(ui_ctx->doublebuffer[0][r], 1, ui_ctx->cols, stdout);
+        fwrite(ui_ctx->double_buff[0][r], 1, ui_ctx->cols, stdout);
 #endif
     }
+
+#if ITB_UI_UNICODE
+    wmemcpy(ui_ctx->double_buff[1][0], ui_ctx->double_buff[0][0], ui_ctx->rows * ui_ctx->cols);
+#else
+    memcpy(ui_ctx->double_buff[1][0], ui_ctx->double_buff[0][0], ui_ctx->rows * ui_ctx->cols);
+#endif
 
     //restore previous state
     itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
@@ -457,9 +471,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     --col;
 
 #if ITB_UI_UNICODE
-    wchar_t **buffer = ui_ctx->doublebuffer[0];
+    wchar_t **buffer = ui_ctx->double_buff[0];
 #else
-    char **buffer = ui_ctx->doublebuffer[0];
+    char **buffer = ui_ctx->double_buff[0];
 #endif
 
     //tl
@@ -543,9 +557,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
 
 void itb_ui_clear(itb_ui_context *ui_ctx) {
 #if ITB_UI_UNICODE
-    wmemset(ui_ctx->doublebuffer[0][0], L' ', ui_ctx->cols * ui_ctx->rows);
+    wmemset(ui_ctx->double_buff[0][0], L' ', ui_ctx->cols * ui_ctx->rows);
 #else
-    memset(ui_ctx->doublebuffer[0][0], ' ', ui_ctx->cols * ui_ctx->rows);
+    memset(ui_ctx->double_buff[0][0], ' ', ui_ctx->cols * ui_ctx->rows);
 #endif
 }
 
@@ -558,12 +572,24 @@ int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
     int ret;
     va_start(args, fmt);
 #if ITB_UI_UNICODE
-    ret = vswprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
-        ui_ctx->cols - ui_ctx->cursor[1], fmt, args);
+    ret = vswprintf(ui_ctx->render_line, ui_ctx->cols - ui_ctx->cursor[1] + 1, fmt, args);
 #else
-    ret = vsnprintf(ui_ctx->doublebuffer[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1],
-        ui_ctx->cols - ui_ctx->cursor[1], fmt, args);
+    ret = vsnprintf(ui_ctx->render_line, ui_ctx->cols - ui_ctx->cursor[1] + 1, fmt, args);
 #endif
+
+    if (ret > 0) {
+        if ((size_t)ret > ui_ctx->cols - ui_ctx->cursor[1] + 1) {
+            ret = ui_ctx->cols - ui_ctx->cursor[1] + 1;
+        }
+
+#if ITB_UI_UNICODE
+        wmemcpy(ui_ctx->double_buff[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1], ui_ctx->render_line,
+            ret + wcslen(fmt));
+#else
+        memcpy(ui_ctx->double_buff[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1], ui_ctx->render_line,
+            ret + strlen(fmt));
+#endif
+    }
     va_end(args);
     return ret;
 }
@@ -578,10 +604,22 @@ int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *
         int ret;
         va_start(args, fmt);
 #if ITB_UI_UNICODE
-        ret = vswprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
+        ret = vswprintf(ui_ctx->render_line, ui_ctx->cols - col + 1, fmt, args);
 #else
-        ret = vsnprintf(ui_ctx->doublebuffer[0][row] + col, ui_ctx->cols - col, fmt, args);
+        ret = vsnprintf(ui_ctx->render_line, ui_ctx->cols - col + 1, fmt, args);
 #endif
+
+        if (ret > 0) {
+            if ((size_t)ret > ui_ctx->cols - col + 1) {
+                ret = ui_ctx->cols - col + 1;
+            }
+
+#if ITB_UI_UNICODE
+            wmemcpy(ui_ctx->double_buff[0][row] + col, ui_ctx->render_line, ret);
+#else
+            memcpy(ui_ctx->double_buff[0][row] + col, ui_ctx->render_line, ret);
+#endif
+        }
         va_end(args);
         return ret;
     } else {
