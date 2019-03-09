@@ -45,21 +45,26 @@ extern "C" {
 #endif
 
 //==>ncurses like replacement<==
-
-#define ITB_ANSI_COLOR_RED "\x1b[31m"
-#define ITB_ANSI_COLOR_GREEN "\x1b[32m"
-#define ITB_ANSI_COLOR_YELLOW "\x1b[33m"
-#define ITB_ANSI_COLOR_BLUE "\x1b[34m"
-#define ITB_ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ITB_ANSI_COLOR_CYAN "\x1b[36m"
-#define ITB_ANSI_COLOR_RESET "\x1b[0m"
-
 #if ITB_UI_UNICODE
 #include <wchar.h>
 #define __ITB_TEXT(x) L##x
 #else
 #define __ITB_TEXT(x) x
 #endif
+
+#define __ITB_COLOR_CONV(x) #x
+#define ITB_COLOR(fg, bg) __ITB_TEXT("\x1b[3" __ITB_COLOR_CONV(fg) "m;4" __ITB_COLOR_CONV(bg) "m")
+
+#define ITB_BLACK 0
+#define ITB_RED 1
+#define ITB_GREEN 2
+#define ITB_YELLOW 3
+#define ITB_BLUE 4
+#define ITB_MAGENTA 5
+#define ITB_CYAN 6
+#define ITB_WHITE 7
+
+#define ITB_RESET __ITB_TEXT("\x1b[0m")
 
 //use this to wrap strings to automatically add long string L constants as needed
 #define ITB_T(x) __ITB_TEXT(x)
@@ -156,18 +161,18 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
 
     //store the original terminal settings
     if (tcgetattr(STDIN_FILENO, &ui_ctx->original)) {
-        return 1;
+        return 2;
     }
 
 #if ITB_UI_UNICODE
     //use the environments locale
     if (!setlocale(LC_ALL, "")) {
-        return 1;
+        return 3;
     }
 
     //set it to multibyte
     if (fwide(stdout, 1) <= 0) {
-        return 1;
+        return 4;
     }
 #endif
 
@@ -195,12 +200,12 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
 
     // put terminal in raw mode after flushing
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw)) {
-        return 1;
+        return 5;
     }
 
     struct winsize w;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w)) {
-        return 1;
+        return 6;
     }
 
     ui_ctx->rows = w.ws_row;
@@ -227,6 +232,10 @@ int itb_ui_start(itb_ui_context *ui_ctx) {
 #endif
 
     uint8_t *temp = malloc((row_size + data_size) * 2 + line_size);
+
+    if (!temp) {
+        return 7;
+    }
 
     uint8_t *row1_offset   = (temp);
     uint8_t *row2_offset   = (temp + row_size);

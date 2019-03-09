@@ -6,10 +6,15 @@
 
 int main(void) {
     itb_ui_context ctx;
-    if (itb_ui_start(&ctx)) {
+
+    int ret;
+    if ((ret = itb_ui_start(&ctx))) {
         perror("start");
+        printf("%d\n", ret);
         return 1;
     }
+
+    wprintf(ITB_COLOR(ITB_GREEN, ITB_BLACK));
 
     itb_ui_hide(&ctx);
 
@@ -22,6 +27,7 @@ int main(void) {
     itb_ui_clear(&ctx);
     itb_ui_flip(&ctx);
 
+#if 0
     for (size_t r = 1; r <= ctx.rows; ++r) {
         for (size_t c = 1; c <= ctx.cols; ++c) {
 #if ITB_UI_UNICODE
@@ -40,8 +46,10 @@ int main(void) {
     }
 
     itb_ui_flip(&ctx);
+#endif
 
     itb_ui_show(&ctx);
     itb_ui_end(&ctx);
+    printf(ITB_RESET);
     return 0;
 }
