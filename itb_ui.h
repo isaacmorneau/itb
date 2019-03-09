@@ -28,12 +28,14 @@ extern "C" {
 
 //==>configureable defines<==
 //allow static, extern, or no specifier linking
+#ifndef ITBDEF
 #ifdef ITB_STATIC
 #define ITBDEF static
 #elif ITB_EXTERN
 #define ITBDEF extern
 #else
 #define ITBDEF
+#endif
 #endif
 //default it to use unicode
 //use ascii only with
