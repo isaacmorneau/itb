@@ -17,6 +17,7 @@ int main(void) {
         itb_ui_box(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, 10, 10);
         itb_ui_rcprintf(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, ITB_T("<%d>"), i);
         itb_ui_flip(&ctx);
+        //usleep(3000);
     }
 
     itb_ui_clear(&ctx);

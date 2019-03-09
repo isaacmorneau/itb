@@ -62,7 +62,7 @@ typedef struct itb_ui_context {
     //current row, current col
     size_t cursor[2];
     //min row, min col, max row, max col
-    //set by itb_ui_dirty_point
+    //set by itb_ui_dirty_box
     ssize_t dirty[4];
     //x*y*2
     size_t buffsize;
@@ -104,10 +104,9 @@ ITBDEF void itb_ui_show(itb_ui_context *ui_ctx);
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
 
-//mark a coord as needing a redraw
-//if a box was drawn for example it would be called twice,
-//once for top left once for bottom right
-ITBDEF void itb_ui_dirty_point(itb_ui_context *ui_ctx, size_t row, size_t col);
+//mark a box as needing a redraw
+ITBDEF void itb_ui_dirty_box(
+    itb_ui_context *ui_ctx, size_t minrow, size_t mincol, size_t maxrow, size_t maxcol);
 
 //starts at the top left
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
@@ -288,21 +287,22 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
     return 0;
 }
 
-void itb_ui_dirty_point(itb_ui_context *ui_ctx, size_t row, size_t col) {
-    if (row > 0 && (ui_ctx->dirty[0] == -1 || (size_t)ui_ctx->dirty[0] > row)) {
-        ui_ctx->dirty[0] = row;
+void itb_ui_dirty_box(
+    itb_ui_context *ui_ctx, size_t minrow, size_t mincol, size_t maxrow, size_t maxcol) {
+    if (minrow > 0 && (ui_ctx->dirty[0] == -1 || (size_t)ui_ctx->dirty[0] > minrow)) {
+        ui_ctx->dirty[0] = minrow;
     }
 
-    if (col > 0 && (ui_ctx->dirty[1] == -1 || (size_t)ui_ctx->dirty[1] > col)) {
-        ui_ctx->dirty[1] = col;
+    if (mincol > 0 && (ui_ctx->dirty[1] == -1 || (size_t)ui_ctx->dirty[1] > mincol)) {
+        ui_ctx->dirty[1] = mincol;
     }
 
-    if (row <= ui_ctx->rows && (ui_ctx->dirty[2] == -1 || (size_t)ui_ctx->dirty[2] < row)) {
-        ui_ctx->dirty[2] = row;
+    if (maxrow > 0 && (ui_ctx->dirty[2] == -1 || (size_t)ui_ctx->dirty[2] < maxrow)) {
+        ui_ctx->dirty[2] = maxrow;
     }
 
-    if (col <= ui_ctx->cols && (ui_ctx->dirty[3] == -1 || (size_t)ui_ctx->dirty[3] < col)) {
-        ui_ctx->dirty[3] = col;
+    if (maxcol > 0 && (ui_ctx->dirty[3] == -1 || (size_t)ui_ctx->dirty[3] < maxcol)) {
+        ui_ctx->dirty[3] = maxcol;
     }
 }
 
@@ -503,8 +503,7 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     buffer[row][col] = '+';
 #endif
 
-    itb_ui_dirty_point(ui_ctx, row, col);
-    itb_ui_dirty_point(ui_ctx, row + height, col + width);
+    itb_ui_dirty_box(ui_ctx, row, col, row + height, col + width);
 
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
@@ -604,8 +603,8 @@ int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
         if ((size_t)ret > ui_ctx->cols - ui_ctx->cursor[1] + 1) {
             ret = ui_ctx->cols - ui_ctx->cursor[1] + 1;
         }
-        itb_ui_dirty_point(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]);
-        itb_ui_dirty_point(ui_ctx, ui_ctx->cursor[0], ret);
+        itb_ui_dirty_box(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1], ui_ctx->cursor[0],
+            ui_ctx->cursor[1] + ret);
 
 #if ITB_UI_UNICODE
         wmemcpy(ui_ctx->double_buff[0][ui_ctx->cursor[0]] + ui_ctx->cursor[1], ui_ctx->render_line,
@@ -639,8 +638,7 @@ int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *
                 ret = ui_ctx->cols - col + 1;
             }
 
-            itb_ui_dirty_point(ui_ctx, row, col);
-            itb_ui_dirty_point(ui_ctx, row, ret);
+            itb_ui_dirty_box(ui_ctx, row, col, row, col + ret);
 
 #if ITB_UI_UNICODE
             wmemcpy(ui_ctx->double_buff[0][row] + col, ui_ctx->render_line, ret);
