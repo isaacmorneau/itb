@@ -26,8 +26,8 @@ int main(void) {
     itb_ui_flip_force(&ctx);
 
     for (size_t r = 0; r < ctx.rows; r += 10) {
-        for (size_t c = 0; c < ctx.rows; c += 10) {
-            itb_ui_box(&ctx, r, c, 8, 8);
+        for (size_t c = 0; c < ctx.cols; c += 10) {
+            itb_ui_box(&ctx, r+1, c+1, 9, 9);
         }
     }
     itb_ui_flip(&ctx);

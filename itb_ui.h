@@ -151,6 +151,11 @@ ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col);
 //pass NULL for mode to rest
 ITBDEF void itb_ui_color(itb_ui_context *ui_ctx, itb_color_mode *mode);
 
+//update the color of a given region to the current drawing color
+ITBDEF void itb_ui_color_line(itb_ui_context *ui_ctx, size_t row, size_t col, size_t length);
+ITBDEF void itb_ui_color_box(
+    itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
+
 //hide the cursor
 ITBDEF void itb_ui_hide(itb_ui_context *ui_ctx);
 //show the cursor
@@ -569,6 +574,7 @@ void itb_ui_box(
 #endif
 
     itb_ui_dirty_box(ui_ctx, row, col, row + height, col + width);
+    itb_ui_color_box(ui_ctx, row, col, width, height);
 
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
@@ -648,6 +654,7 @@ void itb_ui_clear(itb_ui_context *restrict ui_ctx) {
 #else
     memset(ui_ctx->double_buff[0], ' ', ui_ctx->cols * ui_ctx->rows);
 #endif
+    memset(ui_ctx->color_buff, 0, ui_ctx->cols * ui_ctx->rows * sizeof(itb_color_mode));
 }
 
 #if ITB_UI_UNICODE
@@ -680,6 +687,8 @@ int itb_ui_printf(itb_ui_context *restrict ui_ctx, const char *fmt, ...) {
             ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]),
             ui_ctx->render_line, ret);
 #endif
+        itb_ui_color_line(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1], ret);
+
     }
     va_end(args);
     return ret;
@@ -715,11 +724,37 @@ int itb_ui_rcprintf(itb_ui_context *restrict ui_ctx, size_t row, size_t col, con
             memcpy(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col), ui_ctx->render_line,
                 ret);
 #endif
+            itb_ui_color_line(ui_ctx, row, col, ret);
         }
         va_end(args);
         return ret;
     } else {
         return -1;
+    }
+}
+
+void itb_ui_color_line(itb_ui_context *ui_ctx, size_t row, size_t col, size_t length) {
+    //1 to 0 index and bouds check
+    if (row-- == 0 || col-- == 0 || row >= ui_ctx->rows || col >= ui_ctx->cols) {
+        //out of bounds
+        return;
+    }
+
+    //set the start of the color
+    ui_ctx->color_buff[ITB_UI_CTX_INDEX(ui_ctx, row, col)] = ui_ctx->current_color;
+    //clear out any other existing colors
+    if (length > 1) {
+        //trim length
+        if (col + length > ui_ctx->cols) {
+            length = ui_ctx->cols - col;
+        }
+        memset(ui_ctx->color_buff + ITB_UI_CTX_INDEX(ui_ctx, row, col), 0, length);
+    }
+}
+
+void itb_ui_color_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height) {
+    for (size_t h = row; h < row + height; ++h) {
+        itb_ui_color_line(ui_ctx, h, col, width);
     }
 }
 
