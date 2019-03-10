@@ -14,42 +14,25 @@ int main(void) {
         return 1;
     }
 
-    //printf(ITB_COLOR(ITB_GREEN, ITB_BLACK));
-
     itb_ui_hide(&ctx);
 
     for (int i = 0; i < 10000; ++i) {
         itb_ui_box(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, 10, 10);
-        itb_ui_rcprintf(&ctx, (i % ctx.rows) + 1, (i % ctx.cols) + 1, ITB_T("<%d>"), i);
+        itb_ui_rcprintf(&ctx, (i % ctx.rows) + 5, (i % ctx.cols) + 5, ITB_T("<%d>"), i);
         itb_ui_flip(&ctx);
     }
 
     itb_ui_clear(&ctx);
-    itb_ui_flip(&ctx);
+    itb_ui_flip_force(&ctx);
 
-#if 0
-    for (size_t r = 1; r <= ctx.rows; ++r) {
-        for (size_t c = 1; c <= ctx.cols; ++c) {
-#if ITB_UI_UNICODE
-            itb_ui_rcprintf(&ctx, r, c, L"Ʊ");
-#else
-            itb_ui_rcprintf(&ctx, r, c, "#");
-#endif
-            itb_ui_flip(&ctx);
+    for (size_t r = 0; r < ctx.rows; r += 10) {
+        for (size_t c = 0; c < ctx.rows; c += 10) {
+            itb_ui_box(&ctx, r, c, 8, 8);
         }
     }
-
-    for (size_t r = 1; r <= ctx.rows; ++r) {
-        for (size_t c = 1; c <= ctx.cols; c += 2) {
-            itb_ui_rcprintf(&ctx, r, c, ITB_T("|"));
-        }
-    }
-
     itb_ui_flip(&ctx);
-#endif
 
     itb_ui_show(&ctx);
     itb_ui_end(&ctx);
-    //printf(ITB_RESET);
     return 0;
 }

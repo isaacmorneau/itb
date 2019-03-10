@@ -94,8 +94,7 @@ typedef union {
     uint16_t flags;
 } itb_color_mode;
 
-#define ITB_UI_CTX_DATA(ctx, row, col) ((ctx)->double_buff[0] + ((row) * (ctx)->cols) + (col))
-#define ITB_UI_CTX_DATAB(ctx, row, col) ((ctx)->double_buff[1] + ((row) * (ctx)->cols) + (col))
+#define ITB_UI_CTX_INDEX(ctx, row, col) (((row) * (ctx)->cols) + (col))
 
 typedef struct itb_ui_context {
     //for returning to normal terminal settings after
@@ -105,9 +104,12 @@ typedef struct itb_ui_context {
     size_t cols;
     //current row, current col
     size_t cursor[2];
-    //min row, min col, max row, max col
     //set by itb_ui_dirty_box
-    ssize_t dirty[4];
+    ssize_t dirty_min_row;
+    ssize_t dirty_min_col;
+    ssize_t dirty_max_row;
+    ssize_t dirty_max_col;
+
     //x*y*2
     size_t buffsize;
     //flattened grid of what color mode is set rn
@@ -333,37 +335,38 @@ int itb_ui_end(itb_ui_context *ui_ctx) {
 
 void itb_ui_dirty_box(
     itb_ui_context *ui_ctx, size_t minrow, size_t mincol, size_t maxrow, size_t maxcol) {
-    if (minrow > 0 && (ui_ctx->dirty[0] == -1 || (size_t)ui_ctx->dirty[0] > minrow)) {
-        ui_ctx->dirty[0] = minrow;
+    if (minrow > 0 && (ui_ctx->dirty_min_row == -1 || (size_t)ui_ctx->dirty_min_row > minrow)) {
+        ui_ctx->dirty_min_row = minrow;
     }
 
-    if (mincol > 0 && (ui_ctx->dirty[1] == -1 || (size_t)ui_ctx->dirty[1] > mincol)) {
-        ui_ctx->dirty[1] = mincol;
+    if (mincol > 0 && (ui_ctx->dirty_min_col == -1 || (size_t)ui_ctx->dirty_min_col > mincol)) {
+        ui_ctx->dirty_min_col = mincol;
     }
 
-    if (maxrow > 0 && (ui_ctx->dirty[2] == -1 || (size_t)ui_ctx->dirty[2] < maxrow)) {
-        ui_ctx->dirty[2] = maxrow;
+    if (maxrow > 0 && (ui_ctx->dirty_max_row == -1 || (size_t)ui_ctx->dirty_max_row < maxrow)) {
+        ui_ctx->dirty_max_row = maxrow;
     }
 
-    if (maxcol > 0 && (ui_ctx->dirty[3] == -1 || (size_t)ui_ctx->dirty[3] < maxcol)) {
-        ui_ctx->dirty[3] = maxcol;
+    if (maxcol > 0 && (ui_ctx->dirty_max_col == -1 || (size_t)ui_ctx->dirty_max_col < maxcol)) {
+        ui_ctx->dirty_max_col = maxcol;
     }
 }
 
 void itb_ui_flip(itb_ui_context *ui_ctx) {
-    if (ui_ctx->dirty[0] == -1 && ui_ctx->dirty[1] == -1) {
+    if (ui_ctx->dirty_min_row == -1 && ui_ctx->dirty_min_col == -1 && ui_ctx->dirty_max_row == -1
+        && ui_ctx->dirty_max_col == -1) {
         //there were no changes
         return;
     } else {
         //ensure that if any rows were only partially set they are corrected
-        if (ui_ctx->dirty[0] < 0)
-            ui_ctx->dirty[0] = 0;
-        if (ui_ctx->dirty[1] < 0)
-            ui_ctx->dirty[1] = 0;
-        if (ui_ctx->dirty[2] < 0 || (size_t)ui_ctx->dirty[2] > ui_ctx->rows)
-            ui_ctx->dirty[2] = ui_ctx->rows;
-        if (ui_ctx->dirty[3] < 0 || (size_t)ui_ctx->dirty[3] > ui_ctx->cols)
-            ui_ctx->dirty[3] = ui_ctx->cols;
+        if (ui_ctx->dirty_min_row < 0)
+            ui_ctx->dirty_min_row = 0;
+        if (ui_ctx->dirty_min_col < 0)
+            ui_ctx->dirty_min_col = 0;
+        if (ui_ctx->dirty_max_row < 0 || (size_t)ui_ctx->dirty_max_row > ui_ctx->rows)
+            ui_ctx->dirty_max_row = ui_ctx->rows;
+        if (ui_ctx->dirty_max_col < 0 || (size_t)ui_ctx->dirty_max_col > ui_ctx->cols)
+            ui_ctx->dirty_max_col = ui_ctx->cols;
     }
     //TODO record the last even so updates dont happen at all when nothings changed
     size_t cursor[2];
@@ -379,59 +382,60 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
         itb_ui_hide(ui_ctx);
     }
 
-    for (size_t r = (size_t)ui_ctx->dirty[0]; r < (size_t)ui_ctx->dirty[2]; ++r) {
-        size_t col   = 0;
-        size_t width = 0;
+    for (size_t r = (size_t)ui_ctx->dirty_min_row; r < (size_t)ui_ctx->dirty_max_row; ++r) {
+        size_t offset = 0;
+        size_t width  = 0;
 
-        for (size_t c = (size_t)ui_ctx->dirty[1]; c < (size_t)ui_ctx->dirty[3]; ++c) {
+        for (size_t c = (size_t)ui_ctx->dirty_min_col; c < (size_t)ui_ctx->dirty_max_col; ++c) {
+            const size_t idx = ITB_UI_CTX_INDEX(ui_ctx, r, c);
+            //if (ui_ctx->color_buff[idx].flags ||
+            if (
 #if ITB_UI_UNICODE
-            if (wcsncmp(ITB_UI_CTX_DATA(ui_ctx, r, c), ITB_UI_CTX_DATAB(ui_ctx, r, c), 1)) {
+                wcsncmp(ui_ctx->double_buff[0] + idx, ui_ctx->double_buff[1] + idx, 1)
 #else
-            if (strncmp(ITB_UI_CTX_DATA(ui_ctx, r, c), ITB_UI_CTX_DATAB(ui_ctx, r, c), 1)) {
+                strncmp(ui_ctx->double_buff[0] + idx, ui_ctx->double_buff[1] + idx, 1)
 #endif
+            ) {
                 //it is different
 
                 //if its the start of the delta mark it
                 if (!width) {
-                    col = c;
+                    offset = idx;
+                    itb_ui_mv(ui_ctx, r, c);
                 }
 
                 ++width;
             } else if (width) {
                 //it was different
 
-                itb_ui_mv(ui_ctx, r, col);
-
-                int ret;
 
                 //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
+                int ret;
 #if ITB_UI_UNICODE
-                ret = fwprintf(stdout, L"%.*ls", width, ITB_UI_CTX_DATA(ui_ctx, r, col));
-                if (ret > 0) {
-                    wmemcpy(ITB_UI_CTX_DATAB(ui_ctx, r, col), ITB_UI_CTX_DATA(ui_ctx, r, col), ret);
-                }
+                ret = fwprintf(stdout, L"%.*ls", width, ui_ctx->double_buff[0] + offset);
 #else
-                ret = fwrite(ITB_UI_CTX_DATA(ui_ctx, r, col), 1, width, stdout);
-                if (ret > 0) {
-                    memcpy(ITB_UI_CTX_DATAB(ui_ctx, r, col), ITB_UI_CTX_DATA(ui_ctx, r, col), ret);
-                }
+                ret = fwrite(ui_ctx->double_buff[0] + offset, 1, width, stdout);
 #endif
+                if (ret > 0) {
+#if ITB_UI_UNICODE
+                    wmemcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, ret);
+#else
+                    memcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, ret);
+#endif
+                }
                 width = 0;
             }
         }
         //catch EOL deltas
         if (width) {
-            itb_ui_mv(ui_ctx, r, col);
-
             //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-
             //while i could check the affected colmns in this case the double buffer is pre sanitized and i dont need to
 #if ITB_UI_UNICODE
-            fwprintf(stdout, L"%.*ls", width, ITB_UI_CTX_DATA(ui_ctx, r, col));
-            wmemcpy(ITB_UI_CTX_DATAB(ui_ctx, r, col), ITB_UI_CTX_DATA(ui_ctx, r, col), width);
+            fwprintf(stdout, L"%.*ls", width, ui_ctx->double_buff[0] + offset);
+            wmemcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, width);
 #else
-            fwrite(ITB_UI_CTX_DATA(ui_ctx, r, col), 1, width, stdout);
-            memcpy(ITB_UI_CTX_DATAB(ui_ctx, r, col), ITB_UI_CTX_DATA(ui_ctx, r, col), width);
+            fwrite(ui_ctx->double_buff[0] + offset, 1, width, stdout);
+            memcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, width);
 #endif
         }
     }
@@ -446,10 +450,10 @@ void itb_ui_flip(itb_ui_context *ui_ctx) {
     fflush(stdout);
 
     //reset bounds
-    ui_ctx->dirty[0] = 0;
-    ui_ctx->dirty[1] = 0;
-    ui_ctx->dirty[2] = 0;
-    ui_ctx->dirty[3] = 0;
+    ui_ctx->dirty_min_row = -1;
+    ui_ctx->dirty_min_col = -1;
+    ui_ctx->dirty_max_row = -1;
+    ui_ctx->dirty_max_col = -1;
 }
 
 void itb_ui_flip_force(itb_ui_context *ui_ctx) {
@@ -464,18 +468,17 @@ void itb_ui_flip_force(itb_ui_context *ui_ctx) {
     for (size_t r = 0; r < ui_ctx->rows; ++r) {
         itb_ui_mv(ui_ctx, r + 1, 1);
 #if ITB_UI_UNICODE
-        fwprintf(stdout, L"%.*ls", ui_ctx->cols, ITB_UI_CTX_DATA(ui_ctx, r, 0));
+        fwprintf(stdout, L"%.*ls", ui_ctx->cols,
+            ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, r, 0));
 #else
-        fwrite(ITB_UI_CTX_DATA(ui_ctx, r, 0), 1, ui_ctx->cols, stdout);
+        fwrite(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, r, 0), 1, ui_ctx->cols, stdout);
 #endif
     }
 
 #if ITB_UI_UNICODE
-    wmemcpy(
-        ITB_UI_CTX_DATAB(ui_ctx, 0, 0), ITB_UI_CTX_DATA(ui_ctx, 0, 0), ui_ctx->rows * ui_ctx->cols);
+    wmemcpy(ui_ctx->double_buff[1], ui_ctx->double_buff[0], ui_ctx->rows * ui_ctx->cols);
 #else
-    memcpy(
-        ITB_UI_CTX_DATAB(ui_ctx, 0, 0), ITB_UI_CTX_DATA(ui_ctx, 0, 0), ui_ctx->rows * ui_ctx->cols);
+    memcpy(ui_ctx->double_buff[1], ui_ctx->double_buff[0], ui_ctx->rows * ui_ctx->cols);
 #endif
 
     //restore previous state
@@ -538,9 +541,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
 
     //tl
 #if ITB_UI_UNICODE
-    *ITB_UI_CTX_DATA(ui_ctx, row, col) = L'┌';
+    ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, col)] = L'┌';
 #else
-    *ITB_UI_CTX_DATA(ui_ctx, row, col) = '+';
+    ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, col)] = '+';
 #endif
 
     itb_ui_dirty_box(ui_ctx, row, col, row + height, col + width);
@@ -548,40 +551,40 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     if (row + height < ui_ctx->rows && col + width < ui_ctx->cols) {
         //bl
 #if ITB_UI_UNICODE
-        *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, col) = L'└';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, col)] = L'└';
         //tr
-        *ITB_UI_CTX_DATA(ui_ctx, row, col + width - 1) = L'┐';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, col + width - 1)] = L'┐';
         //br
-        *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, col + width - 1) = L'┘';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, col + width - 1)] = L'┘';
 #else
-        *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, col) = '+';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, col)] = '+';
         //tr
-        *ITB_UI_CTX_DATA(ui_ctx, row, col + width - 1) = '+';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, col + width - 1)] = '+';
         //br
-        *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, col + width - 1) = '+';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, col + width - 1)] = '+';
 #endif
     } else if (col + width < ui_ctx->cols) {
         // tr only
 #if ITB_UI_UNICODE
-        *ITB_UI_CTX_DATA(ui_ctx, row, col + width - 1) = L'┐';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, col + width - 1)] = L'┐';
 #else
-        *ITB_UI_CTX_DATA(ui_ctx, row, col + width - 1) = '+';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, col + width - 1)] = '+';
 #endif
     } else if (row + height < ui_ctx->rows) {
         // bl only
 #if ITB_UI_UNICODE
-        *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, col) = L'└';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, col)] = L'└';
 #else
-        *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, col) = '+';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, col)] = '+';
 #endif
     }
 
     //top line can at least start
     for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
 #if ITB_UI_UNICODE
-        *ITB_UI_CTX_DATA(ui_ctx, row, c) = L'─';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, c)] = L'─';
 #else
-        *ITB_UI_CTX_DATA(ui_ctx, row, c) = '-';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row, c)] = '-';
 #endif
     }
 
@@ -589,9 +592,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     if (row + height < ui_ctx->rows) {
         for (size_t c = col + 1; c < ui_ctx->cols && c < col + width - 1; ++c) {
 #if ITB_UI_UNICODE
-            *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, c) = L'─';
+            ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, c)] = L'─';
 #else
-            *ITB_UI_CTX_DATA(ui_ctx, row + height - 1, c) = '-';
+            ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, row + height - 1, c)] = '-';
 #endif
         }
     }
@@ -599,9 +602,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     //left line can at least start
     for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
 #if ITB_UI_UNICODE
-        *ITB_UI_CTX_DATA(ui_ctx, r, col) = L'│';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, r, col)] = L'│';
 #else
-        *ITB_UI_CTX_DATA(ui_ctx, r, col) = '|';
+        ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, r, col)] = '|';
 #endif
     }
 
@@ -609,9 +612,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
     if (col + width < ui_ctx->cols) { // tr only
         for (size_t r = row + 1; r < ui_ctx->rows && r < row + height - 1; ++r) {
 #if ITB_UI_UNICODE
-            *ITB_UI_CTX_DATA(ui_ctx, r, col + width - 1) = L'│';
+            ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, r, col + width - 1)] = L'│';
 #else
-            *ITB_UI_CTX_DATA(ui_ctx, r, col + width - 1) = '|';
+            ui_ctx->double_buff[0][ITB_UI_CTX_INDEX(ui_ctx, r, col + width - 1)] = '|';
 #endif
         }
     }
@@ -619,9 +622,9 @@ void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, si
 
 void itb_ui_clear(itb_ui_context *ui_ctx) {
 #if ITB_UI_UNICODE
-    wmemset(ITB_UI_CTX_DATA(ui_ctx, 0, 0), L' ', ui_ctx->cols * ui_ctx->rows);
+    wmemset(ui_ctx->double_buff[0], L' ', ui_ctx->cols * ui_ctx->rows);
 #else
-    memset(ITB_UI_CTX_DATA(ui_ctx, 0, 0), ' ', ui_ctx->cols * ui_ctx->rows);
+    memset(ui_ctx->double_buff[0], ' ', ui_ctx->cols * ui_ctx->rows);
 #endif
 }
 
@@ -648,10 +651,12 @@ int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...) {
 
 #if ITB_UI_UNICODE
         wmemcpy(
-            ITB_UI_CTX_DATA(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]), ui_ctx->render_line, ret);
+            ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]),
+            ui_ctx->render_line, ret);
 #else
         memcpy(
-            ITB_UI_CTX_DATA(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]), ui_ctx->render_line, ret);
+            ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]),
+            ui_ctx->render_line, ret);
 #endif
     }
     va_end(args);
@@ -681,9 +686,11 @@ int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *
             itb_ui_dirty_box(ui_ctx, row, col, row, col + ret);
 
 #if ITB_UI_UNICODE
-            wmemcpy(ITB_UI_CTX_DATA(ui_ctx, row, col), ui_ctx->render_line, ret);
+            wmemcpy(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col),
+                ui_ctx->render_line, ret);
 #else
-            memcpy(ITB_UI_CTX_DATA(ui_ctx, row, col), ui_ctx->render_line, ret);
+            memcpy(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col), ui_ctx->render_line,
+                ret);
 #endif
         }
         va_end(args);
