@@ -45,13 +45,24 @@ extern "C" {
 #endif
 
 //==>ncurses like replacement<==
+
+//handle the correct functions for unicode vs regular
 #if ITB_UI_UNICODE
 #include <wchar.h>
 #define __ITB_TEXT(x) L##x
+#define ITB_FPRINTF fwprintf
+#define ITB_SPRINTF vswprintf
+#define ITB_MEMCPY wmemcpy
+#define ITB_MEMSET wmemset
 #else
 #define __ITB_TEXT(x) x
+#define ITB_FPRINTF fprintf
+#define ITB_SPRINTF vsnprintf
+#define ITB_MEMCPY memcpy
+#define ITB_MEMSET memset
 #endif
 
+//color escape string literal builder
 #define __ITB_COLOR_CONV(x) #x
 #define ITB_COLOR(fg, bg) __ITB_TEXT("\x1b[3" __ITB_COLOR_CONV(fg) ";4" __ITB_COLOR_CONV(bg) "m")
 #define ITB_COLOR_FG(fg) __ITB_TEXT("\x1b[3" __ITB_COLOR_CONV(fg) "m")
@@ -72,28 +83,15 @@ extern "C" {
 #define ITB_T(x) __ITB_TEXT(x)
 
 //to keep track of what color modes are set
-union itb_color_set {
-    struct {
-        uint8_t black : 1;
-        uint8_t red : 1;
-        uint8_t green : 1;
-        uint8_t yellow : 1;
-        uint8_t blue : 1;
-        uint8_t magenta : 1;
-        uint8_t cyan : 1;
-        uint8_t white : 1;
-    } flag;
-    uint8_t all;
-};
-
 typedef union {
     struct {
-        union itb_color_set fg;
-        union itb_color_set bg;
+        uint8_t fg;
+        uint8_t bg;
     } set;
     uint16_t flags;
 } itb_color_mode;
 
+//get the correct index in the flat buffers such as double_buff and color_buff
 #define ITB_UI_CTX_INDEX(ctx, row, col) (((row) * (ctx)->cols) + (col))
 
 //organized in decending order of size to minimize padding
@@ -311,11 +309,7 @@ int itb_ui_start(itb_ui_context *restrict ui_ctx) {
 #endif
 
     //clear everything and move to the top left
-#if ITB_UI_UNICODE
-    fwprintf(stdout, L"\x1b[2J\x1b[H");
-#else
-    fputs("\x1b[2J\x1b[H", stdout);
-#endif
+    ITB_FPRINTF(stdout, ITB_T("\x1b[2J\x1b[H"));
 
     fflush(stdout);
 
@@ -364,6 +358,23 @@ void itb_ui_dirty_box(
     }
 }
 
+static inline void __itb_color_print(itb_ui_context *restrict ui_ctx, itb_color_mode *mode) {
+    if (ui_ctx->current_color.flags != mode->flags) {
+        ui_ctx->current_color.flags = mode->flags;
+        //while this is a fixed output that could be turned into a table
+        //...im not writing an 8*8+8+8 switch to handle these cases
+        if (!mode->flags) {
+            ITB_FPRINTF(stdout, ITB_RESET);
+        } else if (mode->set.fg && mode->set.bg) {
+            ITB_FPRINTF(stdout, ITB_T("\x1b[3%hhu,4%hhum"), mode->set.fg, mode->set.bg);
+        } else if (mode->set.fg) {
+            ITB_FPRINTF(stdout, ITB_T("\x1b[3%hhum"), mode->set.fg);
+        } else if (mode->set.bg) {
+            ITB_FPRINTF(stdout, ITB_T("\x1b[4%hhum"), mode->set.bg);
+        }
+    }
+}
+
 void itb_ui_flip(itb_ui_context *restrict ui_ctx) {
     if (ui_ctx->dirty_min_row == -1 && ui_ctx->dirty_min_col == -1 && ui_ctx->dirty_max_row == -1
         && ui_ctx->dirty_max_col == -1) {
@@ -403,8 +414,7 @@ void itb_ui_flip(itb_ui_context *restrict ui_ctx) {
 
         for (size_t c = (size_t)ui_ctx->dirty_min_col; c < (size_t)ui_ctx->dirty_max_col; ++c) {
             const size_t idx = ITB_UI_CTX_INDEX(ui_ctx, r, c);
-            //if (ui_ctx->color_buff[idx].flags ||
-            if (
+            if (ui_ctx->color_buff[idx].flags ||
 #if ITB_UI_UNICODE
                 wcsncmp(ui_ctx->double_buff[0] + idx, ui_ctx->double_buff[1] + idx, 1)
 #else
@@ -425,17 +435,15 @@ void itb_ui_flip(itb_ui_context *restrict ui_ctx) {
 
                 //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
                 int ret;
+                __itb_color_print(ui_ctx, ui_ctx->color_buff + offset);
 #if ITB_UI_UNICODE
                 ret = fwprintf(stdout, L"%.*ls", width, ui_ctx->double_buff[0] + offset);
 #else
                 ret = fwrite(ui_ctx->double_buff[0] + offset, 1, width, stdout);
 #endif
                 if (ret > 0) {
-#if ITB_UI_UNICODE
-                    wmemcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, ret);
-#else
-                    memcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, ret);
-#endif
+                    ITB_MEMCPY(
+                        ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, ret);
                 }
                 width = 0;
             }
@@ -446,11 +454,10 @@ void itb_ui_flip(itb_ui_context *restrict ui_ctx) {
             //while i could check the affected colmns in this case the double buffer is pre sanitized and i dont need to
 #if ITB_UI_UNICODE
             fwprintf(stdout, L"%.*ls", width, ui_ctx->double_buff[0] + offset);
-            wmemcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, width);
 #else
             fwrite(ui_ctx->double_buff[0] + offset, 1, width, stdout);
-            memcpy(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, width);
 #endif
+            ITB_MEMCPY(ui_ctx->double_buff[1] + offset, ui_ctx->double_buff[0] + offset, width);
         }
     }
 
@@ -489,11 +496,7 @@ void itb_ui_flip_force(itb_ui_context *restrict ui_ctx) {
 #endif
     }
 
-#if ITB_UI_UNICODE
-    wmemcpy(ui_ctx->double_buff[1], ui_ctx->double_buff[0], ui_ctx->rows * ui_ctx->cols);
-#else
-    memcpy(ui_ctx->double_buff[1], ui_ctx->double_buff[0], ui_ctx->rows * ui_ctx->cols);
-#endif
+    ITB_MEMCPY(ui_ctx->double_buff[1], ui_ctx->double_buff[0], ui_ctx->rows * ui_ctx->cols);
 
     //restore previous state
     itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
@@ -512,17 +515,9 @@ void itb_ui_mv(itb_ui_context *restrict ui_ctx, size_t row, size_t col) {
     //only update if we actually need to
     if (ui_ctx->cursor[0] != row || ui_ctx->cursor[1] != col) {
         if (row == 1 && col == 1) {
-#if ITB_UI_UNICODE
-            fwprintf(stdout, L"\x1b[H");
-#else
-            fputs("\x1b[H", stdout);
-#endif
+            ITB_FPRINTF(stdout, ITB_T("\x1b[H"));
         } else {
-#if ITB_UI_UNICODE
-            fwprintf(stdout, L"\x1b[%ld;%ldf", row, col);
-#else
-            fprintf(stdout, "\x1b[%ld;%ldf", row, col);
-#endif
+            ITB_FPRINTF(stdout, ITB_T("\x1b[%ld;%ldf"), row, col);
         }
 
         //this feels overkill
@@ -535,22 +530,14 @@ void itb_ui_mv(itb_ui_context *restrict ui_ctx, size_t row, size_t col) {
 
 void itb_ui_hide(itb_ui_context *restrict ui_ctx) {
     if (ui_ctx->cursor_visible) {
-#if ITB_UI_UNICODE
-        fwprintf(stdout, L"\x1b[?25l");
-#else
-        fputs("\x1b[?25l", stdout);
-#endif
+        ITB_FPRINTF(stdout, ITB_T("\x1b[?25l"));
         ui_ctx->cursor_visible = false;
     }
 }
 
 void itb_ui_show(itb_ui_context *restrict ui_ctx) {
     if (!ui_ctx->cursor_visible) {
-#if ITB_UI_UNICODE
-        fwprintf(stdout, L"\x1b[?25h");
-#else
-        fputs("\x1b[?25h", stdout);
-#endif
+        ITB_FPRINTF(stdout, ITB_T("\x1b[?25h"));
         ui_ctx->cursor_visible = true;
     }
 }
@@ -649,27 +636,21 @@ void itb_ui_box(
 }
 
 void itb_ui_clear(itb_ui_context *restrict ui_ctx) {
-#if ITB_UI_UNICODE
-    wmemset(ui_ctx->double_buff[0], L' ', ui_ctx->cols * ui_ctx->rows);
-#else
-    memset(ui_ctx->double_buff[0], ' ', ui_ctx->cols * ui_ctx->rows);
-#endif
+    ITB_MEMSET(ui_ctx->double_buff[0], ITB_T(' '), ui_ctx->cols * ui_ctx->rows);
     memset(ui_ctx->color_buff, 0, ui_ctx->cols * ui_ctx->rows * sizeof(itb_color_mode));
 }
 
+int itb_ui_printf(itb_ui_context *restrict ui_ctx,
 #if ITB_UI_UNICODE
-int itb_ui_printf(itb_ui_context *restrict ui_ctx, const wchar_t *fmt, ...) {
+    const wchar_t *fmt,
 #else
-int itb_ui_printf(itb_ui_context *restrict ui_ctx, const char *fmt, ...) {
+    const char *fmt,
 #endif
+    ...) {
     va_list args;
     int ret;
     va_start(args, fmt);
-#if ITB_UI_UNICODE
-    ret = vswprintf(ui_ctx->render_line, ui_ctx->cols - ui_ctx->cursor[1] + 1, fmt, args);
-#else
-    ret = vsnprintf(ui_ctx->render_line, ui_ctx->cols - ui_ctx->cursor[1] + 1, fmt, args);
-#endif
+    ret = ITB_SPRINTF(ui_ctx->render_line, ui_ctx->cols - ui_ctx->cursor[1] + 1, fmt, args);
 
     if (ret > 0) {
         if ((size_t)ret > ui_ctx->cols - ui_ctx->cursor[1] + 1) {
@@ -678,37 +659,27 @@ int itb_ui_printf(itb_ui_context *restrict ui_ctx, const char *fmt, ...) {
         itb_ui_dirty_box(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1], ui_ctx->cursor[0],
             ui_ctx->cursor[1] + ret);
 
-#if ITB_UI_UNICODE
-        wmemcpy(
+        ITB_MEMCPY(
             ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]),
             ui_ctx->render_line, ret);
-#else
-        memcpy(
-            ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]),
-            ui_ctx->render_line, ret);
-#endif
         itb_ui_color_line(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1], ret);
-
     }
     va_end(args);
     return ret;
 }
 
+int itb_ui_rcprintf(itb_ui_context *restrict ui_ctx, size_t row, size_t col,
 #if ITB_UI_UNICODE
-int itb_ui_rcprintf(
-    itb_ui_context *restrict ui_ctx, size_t row, size_t col, const wchar_t *fmt, ...) {
+    const wchar_t *fmt,
 #else
-int itb_ui_rcprintf(itb_ui_context *restrict ui_ctx, size_t row, size_t col, const char *fmt, ...) {
+    const char *fmt,
 #endif
+    ...) {
     if (row && row <= ui_ctx->rows && col && col <= ui_ctx->cols) {
         va_list args;
         int ret;
         va_start(args, fmt);
-#if ITB_UI_UNICODE
-        ret = vswprintf(ui_ctx->render_line, ui_ctx->cols - col + 1, fmt, args);
-#else
-        ret = vsnprintf(ui_ctx->render_line, ui_ctx->cols - col + 1, fmt, args);
-#endif
+        ret = ITB_SPRINTF(ui_ctx->render_line, ui_ctx->cols - col + 1, fmt, args);
 
         if (ret > 0) {
             if ((size_t)ret > ui_ctx->cols - col + 1) {
@@ -717,13 +688,9 @@ int itb_ui_rcprintf(itb_ui_context *restrict ui_ctx, size_t row, size_t col, con
 
             itb_ui_dirty_box(ui_ctx, row, col, row, col + ret);
 
-#if ITB_UI_UNICODE
-            wmemcpy(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col),
+            ITB_MEMCPY(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col),
                 ui_ctx->render_line, ret);
-#else
-            memcpy(ui_ctx->double_buff[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col), ui_ctx->render_line,
-                ret);
-#endif
+
             itb_ui_color_line(ui_ctx, row, col, ret);
         }
         va_end(args);
@@ -733,7 +700,7 @@ int itb_ui_rcprintf(itb_ui_context *restrict ui_ctx, size_t row, size_t col, con
     }
 }
 
-void itb_ui_color_line(itb_ui_context *ui_ctx, size_t row, size_t col, size_t length) {
+void itb_ui_color_line(itb_ui_context *restrict ui_ctx, size_t row, size_t col, size_t length) {
     //1 to 0 index and bouds check
     if (row-- == 0 || col-- == 0 || row >= ui_ctx->rows || col >= ui_ctx->cols) {
         //out of bounds
@@ -752,7 +719,8 @@ void itb_ui_color_line(itb_ui_context *ui_ctx, size_t row, size_t col, size_t le
     }
 }
 
-void itb_ui_color_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height) {
+void itb_ui_color_box(
+    itb_ui_context *restrict ui_ctx, size_t row, size_t col, size_t width, size_t height) {
     for (size_t h = row; h < row + height; ++h) {
         itb_ui_color_line(ui_ctx, h, col, width);
     }
