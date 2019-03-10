@@ -54,12 +54,14 @@ extern "C" {
 #define ITB_SPRINTF vswprintf
 #define ITB_MEMCPY wmemcpy
 #define ITB_MEMSET wmemset
+#define ITB_CHAR wchar_t
 #else
 #define __ITB_TEXT(x) x
 #define ITB_FPRINTF fprintf
 #define ITB_SPRINTF vsnprintf
 #define ITB_MEMCPY memcpy
 #define ITB_MEMSET memset
+#define ITB_CHAR char
 #endif
 
 //color escape string literal builder
@@ -114,17 +116,11 @@ typedef struct itb_ui_context {
     itb_color_mode *color_buff;
     //0 - delta buffer
     //1 - last flipped
-#if ITB_UI_UNICODE
     //[row * col]
-    wchar_t *double_buff[2];
+    ITB_CHAR *double_buff[2];
     //a temp buff for printf
-    wchar_t *render_line;
-#else
-    //[row * col]
-    char *double_buff[2];
-    //a temp buff for printf
-    char *render_line;
-#endif
+    ITB_CHAR *render_line;
+
     itb_color_mode current_color;
     bool cursor_visible;
 } itb_ui_context;
@@ -170,18 +166,11 @@ ITBDEF void itb_ui_dirty_box(
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
 
 //starts at current cursor
-#if ITB_UI_UNICODE
-ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const wchar_t *fmt, ...);
-#else
-ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const char *fmt, ...);
-#endif
+ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const ITB_CHAR *fmt, ...);
 
 //starts at row and col specified
-#if ITB_UI_UNICODE
-ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const wchar_t *fmt, ...);
-#else
-ITBDEF int itb_ui_rcprintf(itb_ui_context *ui_ctx, size_t row, size_t col, const char *fmt, ...);
-#endif
+ITBDEF int itb_ui_rcprintf(
+    itb_ui_context *ui_ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...);
 
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
@@ -260,20 +249,10 @@ int itb_ui_start(itb_ui_context *restrict ui_ctx) {
     //[page 0 rows][page 1 rows][actual data [page 0 cols][page 1 cols]][render line][color sets]
 
     //compute the sizes
-    const size_t cell_count = ui_ctx->rows * ui_ctx->cols;
-
-    size_t data_size;
-    size_t render_size;
-    size_t color_size;
-
-#if ITB_UI_UNICODE
-    data_size   = cell_count * sizeof(wchar_t);
-    render_size = (ui_ctx->cols + 1) * sizeof(wchar_t);
-#else
-    data_size = cell_count * sizeof(char);
-    render_size = (ui_ctx->cols + 1) * sizeof(char);
-#endif
-    color_size = cell_count * sizeof(itb_color_mode);
+    const size_t cell_count  = ui_ctx->rows * ui_ctx->cols;
+    const size_t data_size   = cell_count * sizeof(ITB_CHAR);
+    const size_t render_size = (ui_ctx->cols + 1) * sizeof(ITB_CHAR);
+    const size_t color_size  = cell_count * sizeof(itb_color_mode);
 
     //all memory is in one block
     uint8_t *temp = calloc(data_size * 2 + render_size + color_size, 1);
@@ -289,24 +268,13 @@ int itb_ui_start(itb_ui_context *restrict ui_ctx) {
     uint8_t *color_offset  = (temp + data_size * 2 + render_size);
 
     //fill out the structure
-#if ITB_UI_UNICODE
-    ui_ctx->double_buff[0] = (wchar_t *)data0_offset;
-    ui_ctx->double_buff[1] = (wchar_t *)data1_offset;
-    ui_ctx->render_line    = (wchar_t *)render_offset;
-#else
-    ui_ctx->double_buff[0] = (char *)data0_offset;
-    ui_ctx->double_buff[1] = (char *)data1_offset;
-    ui_ctx->render_line = (char *)render_offset;
-#endif
-    ui_ctx->color_buff = (itb_color_mode *)color_offset;
+    ui_ctx->double_buff[0] = (ITB_CHAR *)data0_offset;
+    ui_ctx->double_buff[1] = (ITB_CHAR *)data1_offset;
+    ui_ctx->render_line    = (ITB_CHAR *)render_offset;
+    ui_ctx->color_buff     = (itb_color_mode *)color_offset;
 
-#if ITB_UI_UNICODE
-    //you may think? "oh i know ill use the datasize"
-    //no wmemset takes character counts not data size
-    wmemset((wchar_t *)data0_offset, L' ', cell_count * 2);
-#else
-    memset(data0_offset, ' ', cell_count * 2);
-#endif
+    //set data to empty spaces
+    ITB_MEMSET((ITB_CHAR *)data0_offset, ITB_T(' '), cell_count * 2);
 
     //clear everything and move to the top left
     ITB_FPRINTF(stdout, ITB_T("\x1b[2J\x1b[H"));
@@ -640,13 +608,7 @@ void itb_ui_clear(itb_ui_context *restrict ui_ctx) {
     memset(ui_ctx->color_buff, 0, ui_ctx->cols * ui_ctx->rows * sizeof(itb_color_mode));
 }
 
-int itb_ui_printf(itb_ui_context *restrict ui_ctx,
-#if ITB_UI_UNICODE
-    const wchar_t *fmt,
-#else
-    const char *fmt,
-#endif
-    ...) {
+int itb_ui_printf(itb_ui_context *restrict ui_ctx, const ITB_CHAR *fmt, ...) {
     va_list args;
     int ret;
     va_start(args, fmt);
@@ -668,13 +630,8 @@ int itb_ui_printf(itb_ui_context *restrict ui_ctx,
     return ret;
 }
 
-int itb_ui_rcprintf(itb_ui_context *restrict ui_ctx, size_t row, size_t col,
-#if ITB_UI_UNICODE
-    const wchar_t *fmt,
-#else
-    const char *fmt,
-#endif
-    ...) {
+int itb_ui_rcprintf(
+    itb_ui_context *restrict ui_ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
     if (row && row <= ui_ctx->rows && col && col <= ui_ctx->cols) {
         va_list args;
         int ret;
