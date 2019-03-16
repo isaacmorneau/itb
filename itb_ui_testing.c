@@ -23,20 +23,20 @@ int main(void) {
     mode2.set.fg = ITB_WHITE;
     mode2.set.bg = ITB_MAGENTA;
 
-    for (int i = 0; i < 500; ++i) {
-        if (i % 2) {
-            itb_ui_color(&ctx, &mode1);
-        } else {
-            itb_ui_color(&ctx, &mode2);
-        }
-        itb_ui_rcprintf(&ctx, (i % ctx.rows), (i % ctx.cols), ITB_T("<%d>"), i);
+    for (int i = 0; i < 100; i += 10) {
+        size_t r = (i % (ctx.rows - 11) + 1), c = (i % (ctx.cols - 11) + 1);
+        itb_ui_color(&ctx, &mode2);
+        itb_ui_box(&ctx, r, c, 11, 11);
+        itb_ui_color(&ctx, &mode1);
+        itb_ui_rcprintf(&ctx, r + 5, c + 4, ITB_T("<%d>"), i);
         itb_ui_flip(&ctx);
     }
 
-    /*
-    itb_ui_clear(&ctx);
+    //itb_ui_clear(&ctx);
     itb_ui_flip(&ctx);
-
+/*
+    mode1.set.fg = ITB_BLACK;
+    mode1.set.bg = ITB_RED;
     itb_ui_color(&ctx, &mode1);
     for (size_t r = 0; r < ctx.rows; r += 10) {
         for (size_t c = 0; c < ctx.cols; c += 10) {
@@ -47,8 +47,8 @@ int main(void) {
     }
     itb_ui_flip(&ctx);
 
-    itb_ui_show(&ctx);
     */
+    itb_ui_show(&ctx);
     itb_ui_end(&ctx);
     return 0;
 }
