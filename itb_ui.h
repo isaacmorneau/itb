@@ -4,6 +4,8 @@
  * These wrappers are shared across multiple projects and are collected here
  * to make it easier to add to new projects and backport fixes
  *
+ * #TODO benchmark this against ncurses
+ *
  * use `#define ITB_UI_IMPLEMENTATION` before including to create the implemenation
  * for example:
 
@@ -89,6 +91,7 @@ extern "C" {
 #define ITB_T(x) __ITB_TEXT(x)
 
 //to keep track of what color modes are set
+//#TODO support true color
 typedef union {
     struct {
         int8_t fg;
@@ -171,7 +174,6 @@ ITBDEF int itb_ui_start(itb_ui_context *ui_ctx);
 ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 
 //render the scene, fast and prefered
-//if manual updates were applied to the buffers make sure to mark them with itb_dirty_box
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
 
 //move the cursor
@@ -185,19 +187,10 @@ ITBDEF void itb_ui_show(itb_ui_context *ui_ctx);
 //pass NULL for mode to rest
 ITBDEF void itb_ui_color(itb_ui_context *ui_ctx, itb_color_mode *mode);
 
-//update the color of a given region to the current drawing color
-ITBDEF void itb_ui_color_line(itb_ui_context *ui_ctx, size_t row, size_t col, size_t length);
-ITBDEF void itb_ui_color_box(
-    itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
-
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
 
-//mark a box as needing a redraw
-ITBDEF void itb_ui_dirty_box(
-    itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
-
-//starts at the top left
+//wipe the screen and the colors
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
 
 //starts at row and col specified
