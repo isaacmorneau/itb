@@ -96,8 +96,19 @@ typedef union {
     int16_t flags;
 } itb_color_mode;
 
+//rows and columns are 1 indexed while buffers are 0 indexed these also convert between the two
+
 //get the correct index in the flat buffers such as buffer and color_buffer
-#define ITB_UI_CTX_INDEX(ctx, row, col) (((row) * (ctx)->cols) + (col))
+#define ITB_UI_RC_IDX(ctx, row, col, idx)          \
+    do {                                           \
+        idx = ((row)-1) * (ctx)->cols + ((col)-1); \
+    } while (0);
+//convert an idx back to row and column
+#define ITB_UI_IDX_RC(ctx, idx, row, col) \
+    do {                                  \
+        col = (idx) % (ctx)->cols + 1;    \
+        row = (idx) / ((ctx)->cols) + 1;  \
+    } while (0);
 
 //organized in decending order of size to minimize padding
 typedef struct itb_ui_context {
@@ -108,11 +119,6 @@ typedef struct itb_ui_context {
     const size_t cols;
     //current row, current col
     size_t cursor[2];
-    //set by itb_ui_dirty_box
-    ssize_t dirty_min_row;
-    ssize_t dirty_min_col;
-    ssize_t dirty_max_row;
-    ssize_t dirty_max_col;
 
     //0 - delta buffer
     //1 - last flipped
@@ -127,10 +133,9 @@ typedef struct itb_ui_context {
     //current painting color
     itb_color_mode current_color;
     //last painted color
-    itb_color_mode last_color;
+    //itb_color_mode last_color;
     bool cursor_visible;
     //make it a flag as negative rows are valid
-    bool is_dirty;
 } itb_ui_context;
 
 //functions as init and close but also sets the terminal modes to raw and back
@@ -143,11 +148,13 @@ ITBDEF int itb_ui_end(itb_ui_context *ui_ctx);
 //render the scene, fast and prefered
 //if manual updates were applied to the buffers make sure to mark them with itb_dirty_box
 ITBDEF void itb_ui_flip(itb_ui_context *ui_ctx);
-//force rerender it all, slow and should be avoided
-ITBDEF void itb_ui_flip_force(itb_ui_context *ui_ctx);
 
-//move the cursor to the pos
+//move the cursor
 ITBDEF void itb_ui_mv(itb_ui_context *ui_ctx, size_t row, size_t col);
+//hide the cursor
+ITBDEF void itb_ui_hide(itb_ui_context *ui_ctx);
+//show the cursor
+ITBDEF void itb_ui_show(itb_ui_context *ui_ctx);
 
 //set the current drawing color
 //pass NULL for mode to rest
@@ -158,11 +165,6 @@ ITBDEF void itb_ui_color_line(itb_ui_context *ui_ctx, size_t row, size_t col, si
 ITBDEF void itb_ui_color_box(
     itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
 
-//hide the cursor
-ITBDEF void itb_ui_hide(itb_ui_context *ui_ctx);
-//show the cursor
-ITBDEF void itb_ui_show(itb_ui_context *ui_ctx);
-
 //starts at the top left
 ITBDEF void itb_ui_box(itb_ui_context *ui_ctx, size_t row, size_t col, size_t width, size_t height);
 
@@ -172,9 +174,6 @@ ITBDEF void itb_ui_dirty_box(
 
 //starts at the top left
 ITBDEF void itb_ui_clear(itb_ui_context *ui_ctx);
-
-//starts at current cursor
-ITBDEF int itb_ui_printf(itb_ui_context *ui_ctx, const ITB_CHAR *fmt, ...);
 
 //starts at row and col specified
 ITBDEF int itb_ui_rcprintf(
@@ -192,6 +191,7 @@ ITBDEF int itb_ui_rcprintf(
 #endif
 //==>ncurses like replacement<==
 
+//==>initialization and cleanup
 int itb_ui_start(itb_ui_context *restrict ui_ctx) {
     //only run on terminals
     if (!isatty(STDIN_FILENO)) {
@@ -288,19 +288,10 @@ int itb_ui_start(itb_ui_context *restrict ui_ctx) {
     //clear everything and move to the top left
     ITB_FPRINTF(stdout, ITB_T("\x1b[2J\x1b[H"));
 
-    ui_ctx->cursor[0] = 0; //x
-    ui_ctx->cursor[1] = 0; //y
+    ui_ctx->cursor[0] = 1; //x
+    ui_ctx->cursor[1] = 1; //y
 
     fflush(stdout);
-
-    //reset bounds
-    ui_ctx->dirty_min_row = ui_ctx->rows;
-    ui_ctx->dirty_min_col = ui_ctx->cols;
-    ui_ctx->dirty_max_row = 0;
-    ui_ctx->dirty_max_col = 0;
-
-    ui_ctx->current_color.flags = -1;
-    ui_ctx->last_color.flags    = -1;
 
     ui_ctx->cursor_visible = true;
 
@@ -316,184 +307,61 @@ int itb_ui_end(itb_ui_context *restrict ui_ctx) {
         return 1;
     }
 
-    //for (size_t r = 0; r < ui_ctx->rows; ++r) {
-    //    free(ui_ctx->buffer[0][r]);
-    //}
-
+    //only one malloc w00t
     free(ui_ctx->buffer[0]);
+
+    ITB_FPRINTF(stdout, ITB_RESET);
 
     return 0;
 }
 
-void itb_ui_dirty_box(
-    itb_ui_context *restrict ui_ctx, size_t row, size_t col, size_t width, size_t height) {
-    ui_ctx->is_dirty = true;
-
-    if ((size_t)ui_ctx->dirty_min_row > row) {
-        ui_ctx->dirty_min_row = row;
-    }
-
-    if ((size_t)ui_ctx->dirty_min_col > col) {
-        ui_ctx->dirty_min_col = col;
-    }
-
-    if ((size_t)ui_ctx->dirty_max_row < row + height) {
-        ui_ctx->dirty_max_row = row + height;
-    }
-
-    if ((size_t)ui_ctx->dirty_max_col < col + width) {
-        ui_ctx->dirty_max_col = col + width;
+void itb_ui_clear(itb_ui_context *ui_ctx) {
+    const size_t max = ui_ctx->cols * ui_ctx->rows * 2;
+    ITB_MEMSET(ui_ctx->buffer[0], ITB_T(' '), max);
+    for (size_t i = 0; i < max; ++i) {
+        ui_ctx->color_buffer[0][i].flags = -1;
     }
 }
 
-static inline void __itb_color_print(itb_ui_context *restrict ui_ctx, itb_color_mode *mode) {
-    if (ui_ctx->last_color.flags != mode->flags) {
-        //while this is a fixed output that could be turned into a table
-        //...im not writing an 8*8+8+8 switch to handle these cases
-        if (mode->flags == -1) {
-            ITB_FPRINTF(stdout, ITB_RESET);
-        } else if (mode->set.fg != -1 && mode->set.bg != -1) {
-            ITB_FPRINTF(stdout, ITB_T("\x1b[4%hhd;\x1b[3%hhdm"), mode->set.bg, mode->set.fg);
-        } else if (mode->set.fg != -1) {
-            ITB_FPRINTF(stdout, ITB_T("\x1b[3%hhdm"), mode->set.fg);
-        } else if (mode->set.bg != -1) {
-            ITB_FPRINTF(stdout, ITB_T("\x1b[4%hhdm"), mode->set.bg);
-        }
+//==>formatted output
+int itb_ui_rcprintf(
+    itb_ui_context *restrict ui_ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
+    //bounds check
+    if (row && row <= ui_ctx->rows && col && col <= ui_ctx->cols) {
+        va_list args;
+        int ret;
+        va_start(args, fmt);
 
-        ui_ctx->last_color.flags = mode->flags;
-    }
-}
+        //+1 for NULL terminator
+        const size_t maxlen = ui_ctx->cols - col + 1;
 
-static inline void __itb_bound_dirty(itb_ui_context *restrict ui_ctx) {
-    if (ui_ctx->dirty_min_row < 0) {
-        ui_ctx->dirty_min_row = 0;
-    }
-    if (ui_ctx->dirty_min_col < 0) {
-        ui_ctx->dirty_min_col = 0;
-    }
-    if (ui_ctx->dirty_max_row < 0 || (size_t)ui_ctx->dirty_max_row > ui_ctx->rows) {
-        ui_ctx->dirty_max_row = ui_ctx->rows;
-    }
-    if (ui_ctx->dirty_max_col < 0 || (size_t)ui_ctx->dirty_max_col > ui_ctx->cols) {
-        ui_ctx->dirty_max_col = ui_ctx->cols;
-    }
-}
+        ret = ITB_SPRINTF(ui_ctx->render_line, maxlen, fmt, args);
 
-static inline void __itb_print_offset(
-    itb_ui_context *restrict ui_ctx, const size_t offset, const size_t width) {
-#if ITB_UI_UNICODE
-    fwprintf(stdout, L"%.*ls", width, ui_ctx->buffer[0] + offset);
-#else
-    fwrite(ui_ctx->buffer[0] + offset, 1, width, stdout);
-#endif
-    //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
-    ITB_MEMCPY(ui_ctx->buffer[1] + offset, ui_ctx->buffer[0] + offset, width);
-    memcpy(ui_ctx->color_buffer[1] + offset, ui_ctx->color_buffer[0] + offset, width);
-}
+        if (ret > 0) {
+            if ((size_t)ret > maxlen) {
+                ret = maxlen;
+            }
+            size_t idx;
+            ITB_UI_RC_IDX(ui_ctx, row, col, idx);
 
-void itb_ui_flip(itb_ui_context *restrict ui_ctx) {
-    if (!ui_ctx->is_dirty) {
-        //there were no changes
-        return;
-    } else {
-        //ensure that if any rows were only partially set they are corrected
-        __itb_bound_dirty(ui_ctx);
-    }
-
-    size_t cursor[2];
-    cursor[0] = ui_ctx->cursor[0];
-    cursor[1] = ui_ctx->cursor[1];
-
-    //move top left
-    itb_ui_mv(ui_ctx, 1, 1);
-
-    bool isvisibile = ui_ctx->cursor_visible;
-    if (isvisibile) {
-        itb_ui_hide(ui_ctx);
-    }
-
-    for (size_t r = (size_t)ui_ctx->dirty_min_row; r < (size_t)ui_ctx->dirty_max_row; ++r) {
-        size_t offset = 0;
-        size_t width  = 0;
-
-        for (size_t c = (size_t)ui_ctx->dirty_min_col; c < (size_t)ui_ctx->dirty_max_col; ++c) {
-            const size_t idx = ITB_UI_CTX_INDEX(ui_ctx, r, c);
-            if (ITB_STRCMP(ui_ctx->buffer[0] + idx, ui_ctx->buffer[1] + idx, 1)) {
-                //it is different
-
-                //if its the start of the delta mark it
-                if (!width) {
-                    offset = idx;
-                    //0 based to 1
-                    itb_ui_mv(ui_ctx, r + 1, c + 1);
-                    //__itb_color_print(ui_ctx, ui_ctx->color_buffer[0] + idx);
-                }
-
-                ++width;
-            } else if (width) {
-                //it was different
-                __itb_print_offset(ui_ctx, offset, width);
-                width = 0;
+            ITB_MEMCPY(ui_ctx->buffer[0] + idx, ui_ctx->render_line, ret);
+            for (size_t i = 0; i < (size_t)ret; ++i) {
+                ui_ctx->color_buffer[0][idx + i].flags = ui_ctx->current_color.flags;
             }
         }
-        //catch EOL deltas
-        if (width) {
-            __itb_print_offset(ui_ctx, offset, width);
-        }
+        va_end(args);
+        return ret;
+    } else {
+        return -1;
     }
-
-    //restore previous state
-    itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
-
-    if (isvisibile) {
-        itb_ui_show(ui_ctx);
-    }
-
-    fflush(stdout);
-
-    //reset bounds
-    ui_ctx->dirty_min_row = ui_ctx->rows;
-    ui_ctx->dirty_min_col = ui_ctx->cols;
-    ui_ctx->dirty_max_row = 0;
-    ui_ctx->dirty_max_col = 0;
-
-    ui_ctx->is_dirty = false;
 }
 
-void itb_ui_flip_force(itb_ui_context *restrict ui_ctx) {
-    size_t cursor[2];
-    bool isvisibile = ui_ctx->cursor_visible;
-    cursor[0]       = ui_ctx->cursor[0];
-    cursor[1]       = ui_ctx->cursor[1];
-
-    //move top left
-    itb_ui_hide(ui_ctx);
-
-    for (size_t r = 0; r < ui_ctx->rows; ++r) {
-        itb_ui_mv(ui_ctx, r + 1, 1);
-#if ITB_UI_UNICODE
-        fwprintf(
-            stdout, L"%.*ls", ui_ctx->cols, ui_ctx->buffer[0] + ITB_UI_CTX_INDEX(ui_ctx, r, 0));
-#else
-        fwrite(ui_ctx->buffer[0] + ITB_UI_CTX_INDEX(ui_ctx, r, 0), 1, ui_ctx->cols, stdout);
-#endif
-    }
-
-    ITB_MEMCPY(ui_ctx->buffer[1], ui_ctx->buffer[0], ui_ctx->rows * ui_ctx->cols);
-
-    //restore previous state
-    itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
-
-    if (isvisibile) {
-        itb_ui_show(ui_ctx);
-    }
-    fflush(stdout);
-}
-
-void itb_ui_color(itb_ui_context *restrict ui_ctx, itb_color_mode *mode) {
+//==>color functionality
+void itb_ui_color(itb_ui_context *ui_ctx, itb_color_mode *mode) {
     ui_ctx->current_color.flags = mode ? mode->flags : -1;
 }
 
+//==>cursor functionality
 void itb_ui_mv(itb_ui_context *restrict ui_ctx, size_t row, size_t col) {
     //only update if we actually need to
     if (ui_ctx->cursor[0] != row || ui_ctx->cursor[1] != col) {
@@ -525,6 +393,112 @@ void itb_ui_show(itb_ui_context *restrict ui_ctx) {
     }
 }
 
+//==>file internals
+static inline void __itb_change_color(itb_color_mode *mode) {
+    //while this is a fixed output that could be turned into a table
+    //...im not writing an 8*8+8+8 switch to handle these cases
+    if (mode->flags == -1) {
+        ITB_FPRINTF(stdout, ITB_RESET);
+    } else if (mode->set.fg != -1 && mode->set.bg != -1) {
+        ITB_FPRINTF(stdout, ITB_T("\x1b[3%hhd;4%hhdm"), mode->set.fg, mode->set.bg);
+    } else if (mode->set.fg != -1) {
+        ITB_FPRINTF(stdout, ITB_T("\x1b[3%hhdm"), mode->set.fg);
+    } else if (mode->set.bg != -1) {
+        ITB_FPRINTF(stdout, ITB_T("\x1b[4%hhdm"), mode->set.bg);
+    }
+}
+
+//move and color print
+static inline void __itb_mv_print(
+    itb_ui_context *restrict ui_ctx, const size_t idx, const size_t width) {
+    //set color
+    //TODO only change color on change
+    __itb_change_color(ui_ctx->color_buffer[0] + idx);
+    //move
+    size_t row, col;
+    ITB_UI_IDX_RC(ui_ctx, idx, row, col);
+    itb_ui_mv(ui_ctx, row, col);
+
+    //print
+#if ITB_UI_UNICODE
+    fwprintf(stdout, L"%.*ls", width, ui_ctx->buffer[0] + idx);
+#else
+    fwrite(ui_ctx->buffer[0] + idx, 1, width, stdout);
+#endif
+    //TODO test if its faster to instead of doing delta copies to just copy the whole thing in one go afterwards
+    ITB_MEMCPY(ui_ctx->buffer[1] + idx, ui_ctx->buffer[0] + idx, width);
+    memcpy(ui_ctx->color_buffer[1] + idx, ui_ctx->color_buffer[0] + idx, width);
+}
+
+//returns width of next printable chunk setting the starting point
+static inline size_t __itb_find_bound(
+    itb_ui_context *restrict ui_ctx, const size_t src_idx, size_t *restrict dst_idx) {
+    const size_t max = ui_ctx->rows * ui_ctx->cols;
+
+    itb_color_mode mode;
+    mode.flags = ui_ctx->color_buffer[0][src_idx].flags;
+
+    size_t start = src_idx;
+    //remove unchanged starting characters and colors
+    //color change always stops loop
+    while (start < max && !ITB_STRCMP(ui_ctx->buffer[0] + start, ui_ctx->buffer[1] + start, 1)
+        && mode.flags == ui_ctx->color_buffer[0][start].flags)
+        ++start; //loop
+
+    //fist change
+    *dst_idx = start;
+
+    if (start == max) {
+        return 0;
+    }
+
+    size_t end = start;
+    //if the change was a color this will allow efficient bounding as further changese that keep
+    //this color can be batched
+    mode.flags = ui_ctx->color_buffer[0][start].flags;
+
+    //get total changes in a row
+    //color change always stops loop
+    while (end < max && ITB_STRCMP(ui_ctx->buffer[0] + end, ui_ctx->buffer[1] + end, 1)
+        && mode.flags == ui_ctx->color_buffer[0][end].flags)
+        ++end; //loop
+
+    //end of changes
+    return end - start;
+}
+
+void itb_ui_flip(itb_ui_context *restrict ui_ctx) {
+    //save cursor position
+    size_t cursor[2];
+    cursor[0] = ui_ctx->cursor[0];
+    cursor[1] = ui_ctx->cursor[1];
+
+    bool isvisibile = ui_ctx->cursor_visible;
+    if (isvisibile) {
+        itb_ui_hide(ui_ctx);
+    }
+
+    size_t width = 0;
+    for (size_t idx = 0; idx <= ui_ctx->rows * ui_ctx->cols;) {
+        //set idx to the new dest
+        width = __itb_find_bound(ui_ctx, idx, &idx);
+        //if (width) {
+        __itb_mv_print(ui_ctx, idx, width);
+        //}
+        idx += width + 1;
+    }
+
+    //restore previous state
+    itb_ui_mv(ui_ctx, cursor[0], cursor[1]);
+
+    if (isvisibile) {
+        itb_ui_show(ui_ctx);
+    }
+
+    fflush(stdout);
+}
+
+/*
 void itb_ui_box(
     itb_ui_context *restrict ui_ctx, size_t row, size_t col, size_t width, size_t height) {
     //if this is outside we cant render any of it
@@ -625,55 +599,6 @@ void itb_ui_clear(itb_ui_context *restrict ui_ctx) {
     }
 }
 
-int itb_ui_printf(itb_ui_context *restrict ui_ctx, const ITB_CHAR *fmt, ...) {
-    va_list args;
-    int ret;
-    va_start(args, fmt);
-    ret = ITB_SPRINTF(ui_ctx->render_line, ui_ctx->cols - ui_ctx->cursor[1] + 1, fmt, args);
-
-    if (ret > 0) {
-        if ((size_t)ret > ui_ctx->cols - ui_ctx->cursor[1] + 1) {
-            ret = ui_ctx->cols - ui_ctx->cursor[1] + 1;
-        }
-        itb_ui_dirty_box(ui_ctx, ui_ctx->cursor[0] - 1, ui_ctx->cursor[1] - 1, ret, 0);
-
-        ITB_MEMCPY(
-            ui_ctx->buffer[0] + ITB_UI_CTX_INDEX(ui_ctx, ui_ctx->cursor[0], ui_ctx->cursor[1]),
-            ui_ctx->render_line, ret);
-        itb_ui_color_line(ui_ctx, ui_ctx->cursor[0] - 1, ui_ctx->cursor[1] - 1, ret);
-    }
-    va_end(args);
-    return ret;
-}
-
-int itb_ui_rcprintf(
-    itb_ui_context *restrict ui_ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
-    //1 to 0 based and bounds
-    if (row-- && row < ui_ctx->rows && col-- && col < ui_ctx->cols) {
-        va_list args;
-        int ret;
-        va_start(args, fmt);
-        ret = ITB_SPRINTF(ui_ctx->render_line, ui_ctx->cols - col + 1, fmt, args);
-
-        if (ret > 0) {
-            if ((size_t)ret > ui_ctx->cols - col + 1) {
-                ret = ui_ctx->cols - col + 1;
-            }
-
-            itb_ui_dirty_box(ui_ctx, row, col, ret, 0);
-
-            ITB_MEMCPY(
-                ui_ctx->buffer[0] + ITB_UI_CTX_INDEX(ui_ctx, row, col), ui_ctx->render_line, ret);
-
-            itb_ui_color_line(ui_ctx, row, col, ret);
-        }
-        va_end(args);
-        return ret;
-    } else {
-        return -1;
-    }
-}
-
 void itb_ui_color_line(itb_ui_context *restrict ui_ctx, size_t row, size_t col, size_t length) {
     //1 to 0 index and bouds check
     if (row-- == 0 || col-- == 0 || row >= ui_ctx->rows || col >= ui_ctx->cols) {
@@ -681,9 +606,8 @@ void itb_ui_color_line(itb_ui_context *restrict ui_ctx, size_t row, size_t col, 
         return;
     }
 
-    const size_t offset = ITB_UI_CTX_INDEX(ui_ctx, row, col);
-    //set the start of the color
-    //clear out any other existing colors
+    const size_t offset                   = ITB_UI_CTX_INDEX(ui_ctx, row, col);
+    ui_ctx->color_buffer[0][offset].flags = ui_ctx->current_color.flags;
     if (length > 0) {
         for (size_t c = offset; c < offset + length && c < ui_ctx->cols; ++c) {
             ui_ctx->color_buffer[0][c].flags = ui_ctx->current_color.flags;
@@ -697,6 +621,7 @@ void itb_ui_color_box(
         itb_ui_color_line(ui_ctx, row + r, col, width);
     }
 }
+*/
 
 #endif //ITB_UI_IMPLEMENTATION
 
