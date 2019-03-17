@@ -221,6 +221,7 @@ ITBDEF void itb_ui_stash_close(itb_ui_stash *stash);
 #define ITB_K_CTRL(c) ((c)&0x1f)
 
 //start at the range outside char
+//#TODO finish handling the other VT100 escapes
 #define ITB_K_LEFT    (1 << 9)
 #define ITB_K_RIGHT   (2 << 9)
 #define ITB_K_UP      (3 << 9)
