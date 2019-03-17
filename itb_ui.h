@@ -214,6 +214,30 @@ ITBDEF void itb_ui_stash_paste(itb_ui_context *ctx, itb_ui_stash *stash);
 //cleanup resources
 ITBDEF void itb_ui_stash_close(itb_ui_stash *stash);
 
+//input
+
+//input handling
+//ie ITB_K_CTRL('a')
+#define ITB_K_CTRL(c) ((c)&0x1f)
+
+//start at the range outside char
+#define ITB_K_LEFT    (1 << 9)
+#define ITB_K_RIGHT   (2 << 9)
+#define ITB_K_UP      (3 << 9)
+#define ITB_K_DOWN    (4 << 9)
+#define ITB_K_PAGE_UP   (5 << 9)
+#define ITB_K_PAGE_DOWN (6 << 9)
+#define ITB_K_HOME    (7 << 9)
+#define ITB_K_END     (8 << 9)
+#define ITB_K_DELETE  (9 << 9)
+
+//this is whats usually used but it could be 0x8 or ITB_K_CTRL('h')
+#define ITB_K_BACKSPACE (127)
+#define ITB_K_IS_BACKSPACE(c) ((c) == 127 || c == 8 || c == ITB_K_CTRL('h'))
+
+//get a character
+ITBDEF int32_t itb_ui_char();
+
 #endif //ITB_UI_H
 #ifdef ITB_UI_IMPLEMENTATION
 #include <stdarg.h>
@@ -668,6 +692,87 @@ void itb_ui_stash_close(itb_ui_stash *stash) {
     }
 }
 
+//==>input<==
+
+//inspired by https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html
+int32_t itb_ui_char() {
+    char c;
+    switch (read(STDIN_FILENO, &c, 1)) {
+        case -1:
+            //error
+            return -1;
+        case 0:
+            //no data
+            return '\0';
+        case 1:
+            break;
+    }
+    if (c != '\x1b') {
+        return c;
+    }
+
+    //escape code 27
+    char escape_code[3];
+
+    if (read(STDIN_FILENO, escape_code, 1) != 1) {
+        return '\x1b';
+    }
+
+    if (read(STDIN_FILENO, escape_code + 1, 1) != 1) {
+        return '\x1b';
+    }
+
+    if (escape_code[0] == '[') {
+        //additional byte for escape
+        if (escape_code[1] >= '0' && escape_code[1] <= '9') {
+            if (read(STDIN_FILENO, escape_code + 2, 1) != 1) {
+                return '\x1b';
+            }
+            if (escape_code[2] == '~') {
+                switch (escape_code[1]) {
+                    case '1':
+                    case '7':
+                        return ITB_K_HOME;
+                    case '4':
+                    case '8':
+                        return ITB_K_END;
+                    case '3':
+                        return ITB_K_DELETE;
+                    case '5':
+                        return ITB_K_PAGE_UP;
+                    case '6':
+                        return ITB_K_PAGE_DOWN;
+                }
+            }
+        } else {
+            switch (escape_code[1]) {
+                case 'A':
+                    return ITB_K_UP;
+                case 'B':
+                    return ITB_K_DOWN;
+                case 'C':
+                    return ITB_K_RIGHT;
+                case 'D':
+                    return ITB_K_LEFT;
+                case 'H':
+                    return ITB_K_HOME;
+                case 'F':
+                    return ITB_K_END;
+            }
+        }
+    } else if (escape_code[0] == 'O') {
+        switch (escape_code[1]) {
+            case 'H':
+                return ITB_K_HOME;
+            case 'F':
+                return ITB_K_END;
+        }
+    }
+
+    //TODO, i dont think this can actually happen as the only thing that
+    //prints just escape would be ESC thus the next byte would be a '\0'
+    return '\x1b';
+}
 #endif //ITB_UI_IMPLEMENTATION
 
 #ifdef __cplusplus
