@@ -367,8 +367,7 @@ void itb_ui_clear(itb_ui_context *ctx) {
 }
 
 //==>output
-int itb_ui_printf(
-    itb_ui_context *restrict ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
+int itb_ui_printf(itb_ui_context *restrict ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
     //bounds check
     if (row && row <= ctx->rows && col && col <= ctx->cols) {
         va_list args;
@@ -572,8 +571,7 @@ void itb_ui_flip(itb_ui_context *restrict ctx) {
     ctx->is_dirty = false;
 }
 
-void itb_ui_box(
-    itb_ui_context *restrict ctx, size_t row, size_t col, size_t width, size_t height) {
+void itb_ui_box(itb_ui_context *restrict ctx, size_t row, size_t col, size_t width, size_t height) {
     //only render boxes that are fully visable
     if (!row || !col || row + height > ctx->rows || col + width > ctx->cols || width < 2
         || height < 2) {
@@ -583,7 +581,7 @@ void itb_ui_box(
     //corners
     size_t idx, minidx, maxidx;
     ITB_UI_RC_IDX(ctx, row, col, idx);
-    minidx                 = idx;
+    minidx              = idx;
     ctx->buffer[0][idx] = ITB_SEL('+', L'┌');
 
     ctx->color_buffer[0][idx].flags = ctx->current_color.flags;
@@ -655,8 +653,8 @@ void itb_ui_stash_paste(itb_ui_context *ctx, itb_ui_stash *stash) {
     ctx->dirty_start = 0;
     ctx->dirty_end   = cells;
 
-    ITB_MEMCPY(stash->buffer, ctx->buffer[0], cells);
-    memcpy(stash->colors, ctx->color_buffer[0], cells);
+    ITB_MEMCPY(ctx->buffer[0], stash->buffer, cells);
+    memcpy(ctx->color_buffer[0], stash->colors, cells);
 }
 
 void itb_ui_stash_close(itb_ui_stash *stash) {

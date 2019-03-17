@@ -34,6 +34,7 @@ int main(void) {
             itb_ui_strcpy(&ctx, i % ctx.rows + 1, i % ctx.cols + 1, ITB_T("$"), 1);
             itb_ui_flip(&ctx);
         }
+        itb_ui_stash_copy(&ctx, sh + n);
 
         mode1.set.fg = ITB_WHITE;
         mode1.set.bg = ITB_BLACK;
@@ -65,7 +66,17 @@ int main(void) {
         itb_ui_flip(&ctx);
     }
 
+    for (int n = 9; n >= 0; --n) {
+        itb_ui_stash_paste(&ctx, sh + n);
+        itb_ui_flip(&ctx);
+    }
+
     itb_ui_show(&ctx);
+
+    for (int n = 0; n < 10; ++n) {
+        itb_ui_stash_close(sh + n);
+    }
+
     itb_ui_end(&ctx);
     return 0;
 }
