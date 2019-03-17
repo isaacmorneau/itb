@@ -331,7 +331,11 @@ int itb_ui_start(itb_ui_context *restrict ctx) {
     ctx->cursor[0] = 1; //x
     ctx->cursor[1] = 1; //y
 
+    ctx->current_color.flags = -1;
+
     ctx->cursor_visible = true;
+
+    ctx->is_dirty = true;
 
     return 0;
 }
