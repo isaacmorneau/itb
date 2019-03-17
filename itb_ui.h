@@ -233,7 +233,7 @@ ITBDEF void itb_ui_stash_close(itb_ui_stash *stash);
 
 //this is whats usually used but it could be 0x8 or ITB_K_CTRL('h')
 #define ITB_K_BACKSPACE (127)
-#define ITB_K_IS_BACKSPACE(c) ((c) == 127 || c == 8 || c == ITB_K_CTRL('h'))
+#define ITB_K_IS_BACKSPACE(c) ((c) == 127 || (c) == 8 || (c) == ITB_K_CTRL('h'))
 
 //get a character
 ITBDEF int32_t itb_ui_char();
