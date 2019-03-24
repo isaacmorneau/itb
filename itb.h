@@ -279,6 +279,9 @@ ITBDEF int itb_menu_run_once(itb_menu_t *menu, const char *line);
 // will clear trailing input on read, terminates with '\0' not '\n'
 ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 
+//==>QOL wrappers<==
+ITBDEF ssize_t itb_printf(char *str, size_t str_size, const char *format, size_t args_size, void **args);
+
 #endif //ITB_H
 
 #ifdef ITB_IMPLEMENTATION
@@ -1003,6 +1006,51 @@ ssize_t itb_readline(uint8_t *buffer, size_t len) {
     return nread;
 }
 
+//==>QOL wrappers<==
+ssize_t itb_printf(char *str, size_t str_size, const char *format, size_t args_size, void **args) {
+    ssize_t written = 0;
+
+    bool flag = false;
+
+    for (size_t fi = 0, si = 0, sa = 0; format[fi] && si < str_size && sa < args_size; ++fi) {
+        if (flag) {//last char was a %
+            if (format[fi] == '%') {//literal %
+                flag = false;
+                str[si++] = '%';
+                ++written;
+            } else {
+                switch (format[fi]) {
+                    case 'c':
+                        str[si++] = *(char*)(args[sa++]);
+                        ++written;
+                        break;
+                    case 's':
+                        {
+                            char * fs = (char*)(args[sa++]);
+                            while (*fs && si < str_size) {
+                                str[si++] = *fs++;
+                                ++written;
+                            }
+                        }
+                        break;
+                    default:
+                        //what?
+                        break;
+                }
+                flag = false;
+            }
+        } else {
+            if (format[fi] == '%') {
+                flag = true;
+            } else {
+                str[si++] = format[fi];
+                ++written;
+            }
+        }
+    }
+
+    return written;
+}
 
 #endif //ITB_IMPLEMENTATION
 

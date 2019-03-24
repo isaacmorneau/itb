@@ -122,6 +122,18 @@ void test_uri(void * unused) {
 }
 
 int main(void) {
+    char testing[4096];
+    void * testing_args[2];
+    testing_args[0] = "interpolate";
+    testing_args[1] = "F";
+
+    ssize_t written = itb_printf(testing, 4096, "testing %% %s %c \n", 2, testing_args);
+
+    printf("%.*s\n", (int)written, testing);
+
+    return 0;
+
+
     itb_menu_t mainmenu, submenu, subsubmenu;
     bool toggle = 0;
 
