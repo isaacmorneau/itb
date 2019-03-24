@@ -123,13 +123,19 @@ void test_uri(void * unused) {
 
 int main(void) {
     char testing[4096];
-    void * testing_args[2];
+    void * testing_args[10];
     testing_args[0] = "interpolate";
     testing_args[1] = "F";
+    int td = 1234;
+    testing_args[2] = &td;
+    float tf = 16.0;
+    testing_args[3] = &tf;
 
-    ssize_t written = itb_printf(testing, 4096, "testing %% %s %c \n", 2, testing_args);
+    ssize_t written = itb_printf(testing, 4096, "testing %% %s %c %d %f\n", 4, testing_args);
 
     printf("%.*s\n", (int)written, testing);
+
+    puts(testing);
 
     return 0;
 

@@ -280,7 +280,8 @@ ITBDEF int itb_menu_run_once(itb_menu_t *menu, const char *line);
 ITBDEF ssize_t itb_readline(uint8_t *buffer, size_t len);
 
 //==>QOL wrappers<==
-ITBDEF ssize_t itb_printf(char *str, size_t str_size, const char *format, size_t args_size, void **args);
+ITBDEF ssize_t itb_printf(
+    char *str, size_t str_size, const char *format, size_t args_size, void **args);
 
 #endif //ITB_H
 
@@ -291,11 +292,14 @@ ITBDEF ssize_t itb_printf(char *str, size_t str_size, const char *format, size_t
 #include <semaphore.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+//for strfromf
+#define __STDC_WANT_IEC_60559_BFP_EXT__
+#include <stdlib.h>
 
 //==>fd ioctl wrappers<==
 void itb_set_fd_limit(void) {
@@ -1008,31 +1012,44 @@ ssize_t itb_readline(uint8_t *buffer, size_t len) {
 
 //==>QOL wrappers<==
 ssize_t itb_printf(char *str, size_t str_size, const char *format, size_t args_size, void **args) {
-    ssize_t written = 0;
+    size_t si = 0;
 
     bool flag = false;
 
-    for (size_t fi = 0, si = 0, sa = 0; format[fi] && si < str_size && sa < args_size; ++fi) {
-        if (flag) {//last char was a %
-            if (format[fi] == '%') {//literal %
-                flag = false;
+    for (size_t fi = 0, sa = 0; format[fi] && si < str_size && sa < args_size; ++fi) {
+        if (flag) { //last char was a %
+            if (format[fi] == '%') { //literal %
+                flag      = false;
                 str[si++] = '%';
-                ++written;
             } else {
-                switch (format[fi]) {
+                switch (format[fi]) { //possibly just detect format specifiers and pass them off to snprintf
                     case 'c':
-                        str[si++] = *(char*)(args[sa++]);
-                        ++written;
+                        str[si++] = *(char *)(args[sa++]);
                         break;
-                    case 's':
-                        {
-                            char * fs = (char*)(args[sa++]);
-                            while (*fs && si < str_size) {
-                                str[si++] = *fs++;
-                                ++written;
-                            }
+                    case 's': {
+                        char *fs = (char *)(args[sa++]);
+                        while (*fs && si < str_size) {
+                            str[si++] = *fs++;
                         }
-                        break;
+                    } break;
+                    case 'f': {
+                        //TODO double check running into the end of the output buffer with this
+                        int len = snprintf(str + si, str_size - si, "%f", *(float *)(args[sa++]));
+                        if ((size_t)len > str_size - si) {
+                            si = str_size - 1;
+                        } else {
+                            return -1;
+                        }
+                    } break;
+                    case 'd': {
+                        //itoa is non standard ugh
+                        int len = snprintf(str + si, str_size - si, "%d", *(int *)(args[sa++]));
+                        if (len > 0) {
+                            si += len;
+                        } else {
+                            return -1;
+                        }
+                    } break;
                     default:
                         //what?
                         break;
@@ -1044,12 +1061,11 @@ ssize_t itb_printf(char *str, size_t str_size, const char *format, size_t args_s
                 flag = true;
             } else {
                 str[si++] = format[fi];
-                ++written;
             }
         }
     }
 
-    return written;
+    return si;
 }
 
 #endif //ITB_IMPLEMENTATION
