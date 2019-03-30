@@ -28,6 +28,13 @@ extern "C" {
 #include <termios.h>
 #include <unistd.h>
 
+//handle the garbage that c++ makes us deal with
+#ifdef __cplusplus
+#define ITB_RESTRICT
+#else
+#define ITB_RESTRICT restrict
+#endif
+
 //==>configureable defines<==
 //allow static, extern, or no specifier linking
 #ifndef ITBDEF
@@ -142,8 +149,8 @@ typedef struct itb_ui_context {
     //for returning to normal terminal settings after
     struct termios original;
     //also corresponds to bottom right position, (1,1) top left
-    const size_t rows;
-    const size_t cols;
+    size_t rows;
+    size_t cols;
     //current row, current col
     size_t cursor[2];
 
@@ -252,7 +259,7 @@ ITBDEF int32_t itb_ui_char();
 //==>ncurses like replacement<==
 
 //==>initialization and cleanup
-int itb_ui_start(itb_ui_context *restrict ctx) {
+int itb_ui_start(itb_ui_context *ITB_RESTRICT ctx) {
     //only run on terminals
     if (!isatty(STDIN_FILENO)) {
         return 1;
@@ -314,11 +321,8 @@ int itb_ui_start(itb_ui_context *restrict ctx) {
         return 6;
     }
 
-    size_t *rp = (size_t *)&ctx->rows;
-    size_t *cp = (size_t *)&ctx->cols;
-
-    *rp = w.ws_row;
-    *cp = w.ws_col;
+    ctx->rows = w.ws_row;
+    ctx->cols = w.ws_col;
 
     //the initialization is for laying out the memory as follows
     //[page 0 rows][page 1 rows][actual data [page 0 cols][page 1 cols]][render line][color sets]
@@ -330,7 +334,7 @@ int itb_ui_start(itb_ui_context *restrict ctx) {
     const size_t color_size  = cell_count * sizeof(itb_color_mode);
 
     //all memory is in one block
-    uint8_t *temp = malloc((data_size + color_size) * 2 + render_size + color_size);
+    uint8_t *temp = (uint8_t *)malloc((data_size + color_size) * 2 + render_size + color_size);
 
     if (!temp) {
         return 7;
@@ -365,7 +369,7 @@ int itb_ui_start(itb_ui_context *restrict ctx) {
     return 0;
 }
 
-int itb_ui_end(itb_ui_context *restrict ctx) {
+int itb_ui_end(itb_ui_context *ITB_RESTRICT ctx) {
     if (!ctx->cursor_visible) {
         itb_ui_show(ctx);
     }
@@ -396,7 +400,7 @@ void itb_ui_clear(itb_ui_context *ctx) {
 }
 
 //==>output
-int itb_ui_printf(itb_ui_context *restrict ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
+int itb_ui_printf(itb_ui_context *ITB_RESTRICT ctx, size_t row, size_t col, const ITB_CHAR *fmt, ...) {
     //bounds check
     if (row && row <= ctx->rows && col && col <= ctx->cols) {
         va_list args;
@@ -462,7 +466,7 @@ void itb_ui_color(itb_ui_context *ctx, itb_color_mode *mode) {
 }
 
 //==>cursor functionality
-void itb_ui_mv(itb_ui_context *restrict ctx, size_t row, size_t col) {
+void itb_ui_mv(itb_ui_context *ITB_RESTRICT ctx, size_t row, size_t col) {
     //only update if we actually need to
     if (ctx->cursor[0] != row || ctx->cursor[1] != col) {
         if (row == 1 && col == 1) {
@@ -476,14 +480,14 @@ void itb_ui_mv(itb_ui_context *restrict ctx, size_t row, size_t col) {
     } //else no change
 }
 
-void itb_ui_hide(itb_ui_context *restrict ctx) {
+void itb_ui_hide(itb_ui_context *ITB_RESTRICT ctx) {
     if (ctx->cursor_visible) {
         ITB_FPRINTF(stdout, ITB_T("\x1b[?25l"));
         ctx->cursor_visible = false;
     }
 }
 
-void itb_ui_show(itb_ui_context *restrict ctx) {
+void itb_ui_show(itb_ui_context *ITB_RESTRICT ctx) {
     if (!ctx->cursor_visible) {
         ITB_FPRINTF(stdout, ITB_T("\x1b[?25h"));
         ctx->cursor_visible = true;
@@ -507,7 +511,7 @@ static inline void __itb_change_color(itb_color_mode *mode) {
 
 //move and color print
 static inline void __itb_mv_print(
-    itb_ui_context *restrict ctx, const size_t idx, const size_t width) {
+    itb_ui_context *ITB_RESTRICT ctx, const size_t idx, const size_t width) {
     //set color
     //TODO only change color on change
     __itb_change_color(ctx->color_buffer[0] + idx);
@@ -528,7 +532,7 @@ static inline void __itb_mv_print(
 
 //returns width of next printable chunk setting the starting point
 static inline size_t __itb_find_bound(
-    itb_ui_context *restrict ctx, const size_t src_idx, size_t *restrict dst_idx) {
+    itb_ui_context *ITB_RESTRICT ctx, const size_t src_idx, size_t *ITB_RESTRICT dst_idx) {
     const size_t max = ctx->rows * ctx->cols;
 
     itb_color_mode mode;
@@ -563,7 +567,7 @@ static inline size_t __itb_find_bound(
     return end - start;
 }
 
-void itb_ui_flip(itb_ui_context *restrict ctx) {
+void itb_ui_flip(itb_ui_context *ITB_RESTRICT ctx) {
     if (!ctx->is_dirty) {
         //no changes
         return;
@@ -600,7 +604,7 @@ void itb_ui_flip(itb_ui_context *restrict ctx) {
     ctx->is_dirty = false;
 }
 
-void itb_ui_box(itb_ui_context *restrict ctx, size_t row, size_t col, size_t width, size_t height) {
+void itb_ui_box(itb_ui_context *ITB_RESTRICT ctx, size_t row, size_t col, size_t width, size_t height) {
     //only render boxes that are fully visable
     if (!row || !col || row + height > ctx->rows || col + width > ctx->cols || width < 2
         || height < 2) {
@@ -658,7 +662,7 @@ void itb_ui_box(itb_ui_context *restrict ctx, size_t row, size_t col, size_t wid
 int itb_ui_stash_init(const itb_ui_context *ctx, itb_ui_stash *stash) {
     const size_t cells = ctx->rows * ctx->cols;
 
-    uint8_t *temp = malloc(cells * (sizeof(ITB_CHAR) + sizeof(itb_color_mode)));
+    uint8_t *temp = (uint8_t *)malloc(cells * (sizeof(ITB_CHAR) + sizeof(itb_color_mode)));
 
     if (temp) {
         stash->buffer = (ITB_CHAR *)temp;
