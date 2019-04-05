@@ -312,12 +312,15 @@ void itb_set_fd_limit(void) {
     itb_ensure(setrlimit(RLIMIT_NOFILE, &lim) != -1);
 }
 
+#ifndef __ITB_NON_BLOCK
+#define __ITB_NON_BLOCK
 void itb_set_non_blocking(int sfd) {
     int flags;
     itb_ensure((flags = fcntl(sfd, F_GETFL, 0)) != -1);
     flags |= O_NONBLOCK;
     itb_ensure(fcntl(sfd, F_SETFL, flags) != -1);
 }
+#endif
 
 //==>broadcast queue<==
 
