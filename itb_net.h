@@ -172,6 +172,7 @@ ITBDEF void itb_ssl_cleanup(itb_ssl_conn_t *conn);
 #endif //ITB_NET_H
 #ifdef ITB_NET_IMPLEMENTATION
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
