@@ -497,21 +497,31 @@ int itb_daemonize(void) {
     }
     //child
 
-    umask(0);
-
-    fclose(stdin);
-    fclose(stdout);
-    fclose(stderr);
-
     if (setsid() == -1) {
         perror("setsid()");
         return errno;
+    }
+
+    //fork again so that the daemon cannot reconnect with the controlling terminal
+    if ((ret = fork()) < 0) { //>0 its good <0 its bad but we cant do anything about it
+        perror("fork()");
+        return errno;
+        //parent error
+    } else if (ret > 0) {
+        //parent success
+        exit(EXIT_SUCCESS);
     }
 
     if (chdir("/") == -1) {
         perror("chdir()");
         return errno;
     }
+
+    umask(0);
+
+    fclose(stdin);
+    fclose(stdout);
+    fclose(stderr);
 
     return 0;
 }
