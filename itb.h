@@ -491,7 +491,7 @@ int itb_daemonize(void) {
         perror("fork()");
         return errno;
         //parent error
-    } else if (ret < 0) {
+    } else if (ret > 0) {
         //parent success
         exit(EXIT_SUCCESS);
     }
