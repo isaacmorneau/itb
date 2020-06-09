@@ -606,7 +606,7 @@ void itb_ui_flip(itb_ui_context *ITB_RESTRICT ctx) {
 
 void itb_ui_box(itb_ui_context *ITB_RESTRICT ctx, size_t row, size_t col, size_t width, size_t height) {
     //only render boxes that are fully visable
-    if (!row || !col || row + height > ctx->rows || col + width > ctx->cols || width < 2
+    if (!row || !col || row + height -1 > ctx->rows || col + width -1 > ctx->cols || width < 2
         || height < 2) {
         return;
     }
