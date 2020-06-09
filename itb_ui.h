@@ -630,7 +630,7 @@ void
 #ifndef ITB_UI_NO_RESIZE
         return false;
 #else
-        return true;
+        return;
 #endif
     }
     //save cursor position
