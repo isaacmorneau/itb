@@ -194,18 +194,21 @@ typedef struct itb_ui_stash {
 //must be called first
 //this should be set before any printing happens in the program
 ITBDEF int itb_ui_start(itb_ui_context * ctx);
+#ifndef ITB_UI_NO_RESIZE
+ITBDEF void itb_ui_resize_handler(int sig);
+#endif
+
 //must be called last
 ITBDEF int itb_ui_end(itb_ui_context * ctx);
 
 //wipe the screen and the colors
 ITBDEF void itb_ui_clear(itb_ui_context * ctx);
 
+
 //render the scene
 #ifndef ITB_UI_NO_RESIZE
 //returns true if there was a resize to the terminal; you should repaint again
 ITBDEF bool itb_ui_flip(itb_ui_context * ctx);
-
-ITBDEF void itb_ui_resize_handler(int sig);
 #else
 ITBDEF void itb_ui_flip(itb_ui_context * ctx);
 #endif
@@ -370,8 +373,6 @@ int itb_ui_start(itb_ui_context * ITB_RESTRICT ctx) {
     ctx->color_buffer[0] = (itb_color_mode *)color0_offset;
     ctx->color_buffer[1] = (itb_color_mode *)color1_offset;
 
-    itb_ui_clear(ctx);
-
     //clear everything and move to the top left
     ITB_FPRINTF(stdout, ITB_T("\x1b[2J\x1b[H"));
 
@@ -382,9 +383,7 @@ int itb_ui_start(itb_ui_context * ITB_RESTRICT ctx) {
 
     ctx->cursor_visible = true;
 
-    ctx->is_dirty = true;
-    ctx->dirty_start = 0;
-    ctx->dirty_end = cell_count;
+    itb_ui_clear(ctx);
 
 #ifndef ITB_UI_NO_RESIZE
     struct sigaction sa;
@@ -622,6 +621,7 @@ void
         ctx->is_resized = false;
         itb_ui_end(ctx);
         itb_ui_start(ctx);
+        itb_ui_flip(ctx);
         return true;
     }
 #endif
