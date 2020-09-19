@@ -134,11 +134,14 @@ ITBDEF int itb_wait_epoll(int efd, struct epoll_event *events);
 ITBDEF int itb_wait_epoll_timeout(int efd, struct epoll_event *events, int timeout);
 ITBDEF int itb_add_epoll_ptr(int efd, int ifd, void *ptr);
 ITBDEF int itb_add_epoll_fd(int efd, int ifd);
+//if you want to still pass an int but its not the fd
+ITBDEF int itb_add_epoll_afd(int efd, int ifd, int dt);
 //common flag overrides
 #define ITB_EVENT_ONLY_OUT (EPOLLOUT | EPOLLET | EPOLLEXCLUSIVE)
 #define ITB_EVENT_ONLY_IN (EPOLLIN | EPOLLET | EPOLLEXCLUSIVE)
 ITBDEF int itb_add_epoll_ptr_flags(int efd, int ifd, void *ptr, int flags);
 ITBDEF int itb_add_epoll_fd_flags(int efd, int ifd, int flags);
+ITBDEF int itb_add_epoll_afd_flags(int efd, int ifd, int dt, int flags);
 
 //so you dont need to link mbedtls but hey if you do, have some wrappers
 #ifdef ITB_SSL_ADDITIONS
@@ -514,6 +517,24 @@ int itb_add_epoll_fd_flags(int efd, int ifd, int flags) {
     int ret;
     static struct epoll_event event;
     event.data.fd = ifd;
+    event.events  = flags;
+    itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    return ret;
+}
+
+int itb_add_epoll_afd(int efd, int ifd, int dt) {
+    int ret;
+    static struct epoll_event event;
+    event.data.fd = dt;
+    event.events  = EPOLLOUT | EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
+    itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
+    return ret;
+}
+
+int itb_add_epoll_afd_flags(int efd, int ifd, int dt, int flags) {
+    int ret;
+    static struct epoll_event event;
+    event.data.fd = dt;
     event.events  = flags;
     itb_ensure((ret = epoll_ctl(efd, EPOLL_CTL_ADD, ifd, &event)) != -1);
     return ret;
