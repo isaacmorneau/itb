@@ -35,6 +35,7 @@ extern "C" {
 #include <errno.h>
 #include <netdb.h>
 #include <sys/epoll.h>
+#include <stdio.h>
 
 //==>assert macros<==
 #ifndef ITB_ASSERTS
